@@ -1,5 +1,6 @@
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Dices, Star, Download, Repeat2, House, Minus, Plus, FileText, Printer, Save, Trash2, ClipboardPlus } from "lucide-react";
+import { Dices, Star, Download, Repeat2, House, Minus, Plus, FileText, Printer, Save, Trash2, ClipboardPlus, Lock } from "lucide-react";
 import { shirts } from "./shirts-data";
 import { designs, getInitialPlacement, getSavedBasePlacements } from "./designs-data";
 
@@ -35,9 +36,18 @@ const BASE_PRINT_SIZE = "M";
 const PLACEMENT_STORAGE_KEY = "anrocher-design-placements-v7";
 const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
+const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.0.3.6-order-ink-tint";
+const APP_VERSION = "V04.0.3.8-design-adjust-password-lock";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
+
+/**
+ * 注意:
+ * これはフロント側の簡易ロックです。
+ * 本気のセキュリティにはなりません。
+ * 外部公開ページでの誤操作防止用として使ってください。
+ */
+const DESIGN_ADJUST_PASSWORD = "unr0ch3r";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
@@ -275,6 +285,28 @@ function saveOrderDraftsToStorage(items) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore
+  }
+}
+
+function loadDesignAdjustAuth() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(DESIGN_ADJUST_AUTH_STORAGE_KEY) === "ok";
+  } catch {
+    return false;
+  }
+}
+
+function saveDesignAdjustAuth(value) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value) {
+      window.sessionStorage.setItem(DESIGN_ADJUST_AUTH_STORAGE_KEY, "ok");
+    } else {
+      window.sessionStorage.removeItem(DESIGN_ADJUST_AUTH_STORAGE_KEY);
+    }
   } catch {
     // ignore
   }
@@ -587,7 +619,6 @@ function loadImageForPreview(src) {
   });
 }
 
-
 function hexToRgba(hex, alpha = 0.12) {
   if (!hex) return `rgba(0,0,0,${alpha})`;
   let value = String(hex).trim().replace('#', '');
@@ -614,6 +645,7 @@ function getInkPresetByValue(value, explicitHex = "") {
     null
   );
 }
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -635,18 +667,6 @@ function getShirtScale(sizeKey) {
   const base = getBodyLengthCm(BASE_PRINT_SIZE);
   const current = getBodyLengthCm(sizeKey);
   return current / base;
-}
-
-
-function getTouchDistance(t1, t2) {
-  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-}
-
-function getTouchCenter(t1, t2) {
-  return {
-    x: (t1.clientX + t2.clientX) / 2,
-    y: (t1.clientY + t2.clientY) / 2,
-  };
 }
 
 function getCanvasPoint(clientX, clientY, canvas) {
@@ -726,25 +746,6 @@ function getAllowedStoredFaceSizes(saved, designId, side) {
   return Object.keys(bySide)
     .filter((size) => sizeSpec[size] && EDITABLE_SIZES.includes(size))
     .sort((a, b) => getBodyLengthCm(a) - getBodyLengthCm(b));
-}
-
-function pickNearestBaseFace(bySide, sizes, targetSize, fallbackFace) {
-  if (!sizes.length) return normalizeFace(fallbackFace, fallbackFace);
-  if (sizes.length === 1) return normalizeFace(bySide[sizes[0]], fallbackFace);
-
-  const targetCm = getBodyLengthCm(targetSize);
-  let nearestSize = sizes[0];
-  let nearestDiff = Math.abs(getBodyLengthCm(nearestSize) - targetCm);
-
-  for (const size of sizes) {
-    const diff = Math.abs(getBodyLengthCm(size) - targetCm);
-    if (diff < nearestDiff) {
-      nearestDiff = diff;
-      nearestSize = size;
-    }
-  }
-
-  return normalizeFace(bySide[nearestSize], fallbackFace);
 }
 
 function interpolateFacePlacement(saved, designId, side, targetSize) {
@@ -888,16 +889,6 @@ function buildSavedMapFromDesignsData() {
     };
   }
   return map;
-}
-
-function getDistance(a, b) {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy);
-}
-
-function getMidpoint(a, b) {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
@@ -1298,7 +1289,7 @@ function SizeButton({ size, active, editable, onClick, compact = false }) {
   );
 }
 
-function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize }) {
+function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize, rightElement = null }) {
   return (
     <div
       onClick={collapsible ? onToggle : undefined}
@@ -1309,12 +1300,16 @@ function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize 
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        gap: 8,
         cursor: collapsible ? "pointer" : "default",
         userSelect: "none",
       }}
     >
       <span>{title}</span>
-      {isMobile && collapsible && <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? "−" : "＋"}</span>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {rightElement}
+        {isMobile && collapsible && <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? "−" : "＋"}</span>}
+      </div>
     </div>
   );
 }
@@ -1377,6 +1372,7 @@ export default function App() {
   const [interactionMode, setInteractionMode] = useState("pan");
   const [isEditMode, setIsEditMode] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1440));
+  const [isDesignAdjustAuthed, setIsDesignAdjustAuthed] = useState(() => loadDesignAdjustAuth());
 
   const [openSections, setOpenSections] = useState({
     shirtSettings: true,
@@ -1389,6 +1385,7 @@ export default function App() {
     const firstDesignId = designs[0]?.id || "";
     return buildPlacementStateFromDesignsData(firstDesignId, "M");
   });
+
   useEffect(() => {
     saveFavoritesToStorage(favorites);
   }, [favorites]);
@@ -1396,6 +1393,11 @@ export default function App() {
   useEffect(() => {
     saveOrderDraftsToStorage(savedOrders);
   }, [savedOrders]);
+
+  useEffect(() => {
+    saveDesignAdjustAuth(isDesignAdjustAuthed);
+  }, [isDesignAdjustAuthed]);
+
   const hasSkippedInitialPlacementReloadRef = useRef(false);
   const sessionPlacementsRef = useRef({});
 
@@ -1425,6 +1427,31 @@ export default function App() {
   }, [activeSvgRaw, inkColor]);
 
   const currentSelectionLabel = `${selectedDesign?.name || designId || "デザイン未選択"} / ${shirtCode || "-"} / ${fit || "-"} / ${shirts.find((s) => s.code === shirtCode)?.name || ""}`.trim();
+
+  const selectedInkName =
+    inkPresets.find((ink) => ink.color.toLowerCase() === inkColor.toLowerCase())?.name ||
+    `カスタムカラー ${inkColor}`;
+
+  const promptDesignAdjustPassword = () => {
+    const input = window.prompt("デザイン調整用パスワードを入力してください");
+    if (input == null) {
+      setStatus("デザイン調整の認証をキャンセルしました");
+      return false;
+    }
+    if (input === DESIGN_ADJUST_PASSWORD) {
+      setIsDesignAdjustAuthed(true);
+      setStatus("デザイン調整を認証しました");
+      return true;
+    }
+    window.alert("パスワードが違います");
+    setStatus("デザイン調整の認証に失敗しました");
+    return false;
+  };
+
+  const ensureDesignAdjustAuth = () => {
+    if (isDesignAdjustAuthed) return true;
+    return promptDesignAdjustPassword();
+  };
 
   const addCurrentSelectionToOrder = () => {
     const nextLine = createEmptyOrderLine({
@@ -1464,7 +1491,6 @@ export default function App() {
     addCurrentSelectionToOrder();
     setAppView("order");
   };
-
 
   const getPlacementStateForView = (nextDesignId, nextFit) => {
     const sessionMap = sessionPlacementsRef.current || {};
@@ -1833,6 +1859,8 @@ export default function App() {
   };
 
   const removeStoredBaseSize = (sizeKey) => {
+    if (!ensureDesignAdjustAuth()) return;
+
     const saved = loadSavedPlacements();
 
     if (saved?.[designId]?.[side]?.[sizeKey]) {
@@ -1846,6 +1874,8 @@ export default function App() {
   };
 
   const removeAllStoredBaseSizesForSide = () => {
+    if (!ensureDesignAdjustAuth()) return;
+
     const saved = loadSavedPlacements();
     let removedCount = 0;
 
@@ -1875,6 +1905,8 @@ export default function App() {
   };
 
   const removeAllStorageAndReloadDesignsData = () => {
+    if (!ensureDesignAdjustAuth()) return;
+
     clearAllPlacementsStorage();
     sessionPlacementsRef.current = {};
     refreshPlacementFromDesignsData("端末保存を全削除し、designs-data.js から再読込しました");
@@ -1940,6 +1972,8 @@ export default function App() {
   }
 
   const exportAllDesignsPatch = async () => {
+    if (!ensureDesignAdjustAuth()) return;
+
     const text = buildAllDesignsExportText();
     setExportText(text);
     try {
@@ -1952,6 +1986,7 @@ export default function App() {
 
   const resetPlacement = () => {
     if (!canEditCurrentSize) return;
+    if (!ensureDesignAdjustAuth()) return;
 
     const defaults = getInitialPlacement(designId);
     const next = { ...placement, [side]: safeClone(defaults[side]) };
@@ -2423,6 +2458,10 @@ export default function App() {
   };
 
   const toggleSection = (key) => {
+    if (key === "designAdjust" && !openSections.designAdjust) {
+      if (!ensureDesignAdjustAuth()) return;
+    }
+
     setOpenSections((prev) => ({
       ...prev,
       [key]: !prev[key],
@@ -2432,10 +2471,6 @@ export default function App() {
   useEffect(() => {
     clearInteractionState();
   }, [interactionMode]);
-
-  const selectedInkName =
-    inkPresets.find((ink) => ink.color.toLowerCase() === inkColor.toLowerCase())?.name ||
-    `カスタムカラー ${inkColor}`;
 
   const canvasCursor = panRef.current.active
     ? "move"
@@ -2501,687 +2536,710 @@ export default function App() {
             shirts={shirts}
           />
         ) : (
-      <div
-        style={{
-          display: "grid",
-          gap: isTablet ? 16 : 24,
-          gridTemplateColumns: layoutColumns,
-          alignItems: "start",
-          minWidth: 0,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div style={panelStyle(compact)}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 16,
-                minWidth: 0,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <img
-                  src="/title.svg"
-                  alt="アンロシェカスタムTメーカー"
-                  style={{
-                    display: "block",
-                    width: isMobile ? "100%" : 320,
-                    maxWidth: "100%",
-                    height: "auto",
-                  }}
-                />
-                <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  width: isTablet ? "100%" : "auto",
-                  minWidth: 0,
-                }}
-              >
-                <IconButton title="ランダム" ariaLabel="ランダム" compact={compact} onClick={randomizeStyle}>
-                  <Dices size={compact ? 16 : 18} strokeWidth={2.25} />
-                </IconButton>
-                <IconButton title="お気に入り保存" ariaLabel="お気に入り保存" compact={compact} onClick={saveCurrentFavorite}>
-                  <Star size={compact ? 16 : 18} strokeWidth={2.25} />
-                </IconButton>
-                <IconButton
-                  title="PNG保存"
-                  ariaLabel="PNG保存"
-                  compact={compact}
-                  onClick={() => {
-                    const canvas = canvasRef.current;
-                    if (!canvas) return;
-                    downloadCanvas(canvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}.png`);
-                  }}
-                >
-                  <Download size={compact ? 16 : 18} strokeWidth={2.25} />
-                </IconButton>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                marginBottom: 10,
-                flexWrap: "wrap",
-                minWidth: 0,
-              }}
-            >
-              <button
-                type="button"
-                title={side === "front" ? "裏を見る" : "表を見る"}
-                aria-label={side === "front" ? "裏を見る" : "表を見る"}
-                style={{
-                  ...buttonStyle(false, compact),
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-                onClick={toggleSide}
-              >
-                <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
-                <span>{side === "front" ? "裏" : "表"}</span>
-              </button>
-
-              <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
-                <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
-              </IconButton>
-              <div style={{ minWidth: 64, textAlign: "center", fontWeight: 700 }}>{Math.round(zoom * 100)}%</div>
-              <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
-                <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
-              </IconButton>
-              <IconButton title="表示リセット" ariaLabel="表示リセット" compact={compact} onClick={resetView}>
-                <House size={compact ? 16 : 18} strokeWidth={2.25} />
-              </IconButton>
-
-              <button
-                type="button"
-                title="発注書"
-                aria-label="発注書"
-                style={{
-                  ...buttonStyle(false, compact),
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  marginLeft: compact ? 8 : 12,
-                }}
-                onClick={openOrderWithCurrentSelection}
-              >
-                <FileText size={compact ? 15 : 17} strokeWidth={2.25} />
-                <span>発注書</span>
-              </button>
-            </div>
-
-            <div
-              ref={wrapRef}
-              style={{
-                position: "relative",
-                background: "#fff",
-                borderRadius: compact ? 16 : 20,
-                padding: isMobile ? 8 : 12,
-                boxShadow: "inset 0 2px 8px rgba(0,0,0,0.05)",
-                overflow: "hidden",
-                maxHeight: isTablet ? "none" : "82vh",
-                minWidth: 0,
-                touchAction: "none",
-                overscrollBehavior: "none",
-                WebkitUserSelect: "none",
-                userSelect: "none",
-              }}
-            >
-              <canvas
-                ref={canvasRef}
-                style={{
-                  width: "100%",
-                  maxWidth: "100%",
-                  display: "block",
-                  borderRadius: 16,
-                  background: "#fafaf9",
-                  cursor: canvasCursor,
-                  touchAction: "none",
-                  opacity: isSwitchingDesign ? 0.96 : 1,
-                }}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onPointerLeave={endDrag}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-                onTouchCancel={onTouchEnd}
-                onWheel={(e) => {
-                  if (!(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) return;
-                  e.preventDefault();
-                  zoomAtPoint(e.deltaY);
-                }}
-              />
-            </div>
-
-            <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
-              状態: {isSwitchingDesign ? "デザイン切替中..." : status}
-            </div>
-
-            <div
-              style={{
-                marginTop: 14,
-                border: "1px solid #e7e5e4",
-                borderRadius: 14,
-                background: "#fff",
-                padding: 12,
-              }}
-            >
-              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>お気に入り</div>
-              <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
-                いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
-              </div>
-
-              {favorites.length === 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gap: isTablet ? 16 : 24,
+              gridTemplateColumns: layoutColumns,
+              alignItems: "start",
+              minWidth: 0,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={panelStyle(compact)}>
                 <div
                   style={{
-                    border: "1px dashed #d6d3d1",
-                    borderRadius: 12,
-                    padding: 14,
-                    color: "#78716c",
-                    background: "#fafaf9",
-                    fontSize: 13,
-                  }}
-                >
-                  まだお気に入りはありません
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : isTablet ? "repeat(4, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
-                    gap: 10,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    marginBottom: 16,
                     minWidth: 0,
                   }}
                 >
-                  {favorites.map((favorite) => (
-                    <div
-                      key={favorite.id}
+                  <div style={{ minWidth: 0 }}>
+                    <img
+                      src="/title.svg"
+                      alt="アンロシェカスタムTメーカー"
                       style={{
-                        border: "1px solid #e7e5e4",
+                        display: "block",
+                        width: isMobile ? "100%" : 320,
+                        maxWidth: "100%",
+                        height: "auto",
+                      }}
+                    />
+                    <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      width: isTablet ? "100%" : "auto",
+                      minWidth: 0,
+                    }}
+                  >
+                    <IconButton title="ランダム" ariaLabel="ランダム" compact={compact} onClick={randomizeStyle}>
+                      <Dices size={compact ? 16 : 18} strokeWidth={2.25} />
+                    </IconButton>
+                    <IconButton title="お気に入り保存" ariaLabel="お気に入り保存" compact={compact} onClick={saveCurrentFavorite}>
+                      <Star size={compact ? 16 : 18} strokeWidth={2.25} />
+                    </IconButton>
+                    <IconButton
+                      title="PNG保存"
+                      ariaLabel="PNG保存"
+                      compact={compact}
+                      onClick={() => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return;
+                        downloadCanvas(canvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}.png`);
+                      }}
+                    >
+                      <Download size={compact ? 16 : 18} strokeWidth={2.25} />
+                    </IconButton>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    marginBottom: 10,
+                    flexWrap: "wrap",
+                    minWidth: 0,
+                  }}
+                >
+                  <button
+                    type="button"
+                    title={side === "front" ? "裏を見る" : "表を見る"}
+                    aria-label={side === "front" ? "裏を見る" : "表を見る"}
+                    style={{
+                      ...buttonStyle(false, compact),
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    onClick={toggleSide}
+                  >
+                    <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
+                    <span>{side === "front" ? "裏" : "表"}</span>
+                  </button>
+
+                  <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
+                    <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
+                  </IconButton>
+                  <div style={{ minWidth: 64, textAlign: "center", fontWeight: 700 }}>{Math.round(zoom * 100)}%</div>
+                  <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
+                    <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
+                  </IconButton>
+                  <IconButton title="表示リセット" ariaLabel="表示リセット" compact={compact} onClick={resetView}>
+                    <House size={compact ? 16 : 18} strokeWidth={2.25} />
+                  </IconButton>
+
+                  <button
+                    type="button"
+                    title="発注書"
+                    aria-label="発注書"
+                    style={{
+                      ...buttonStyle(false, compact),
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginLeft: compact ? 8 : 12,
+                    }}
+                    onClick={openOrderWithCurrentSelection}
+                  >
+                    <FileText size={compact ? 15 : 17} strokeWidth={2.25} />
+                    <span>発注書</span>
+                  </button>
+                </div>
+
+                <div
+                  ref={wrapRef}
+                  style={{
+                    position: "relative",
+                    background: "#fff",
+                    borderRadius: compact ? 16 : 20,
+                    padding: isMobile ? 8 : 12,
+                    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.05)",
+                    overflow: "hidden",
+                    maxHeight: isTablet ? "none" : "82vh",
+                    minWidth: 0,
+                    touchAction: "none",
+                    overscrollBehavior: "none",
+                    WebkitUserSelect: "none",
+                    userSelect: "none",
+                  }}
+                >
+                  <canvas
+                    ref={canvasRef}
+                    style={{
+                      width: "100%",
+                      maxWidth: "100%",
+                      display: "block",
+                      borderRadius: 16,
+                      background: "#fafaf9",
+                      cursor: canvasCursor,
+                      touchAction: "none",
+                      opacity: isSwitchingDesign ? 0.96 : 1,
+                    }}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    onPointerLeave={endDrag}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
+                    onTouchCancel={onTouchEnd}
+                    onWheel={(e) => {
+                      if (!(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) return;
+                      e.preventDefault();
+                      zoomAtPoint(e.deltaY);
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
+                  状態: {isSwitchingDesign ? "デザイン切替中..." : status}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    border: "1px solid #e7e5e4",
+                    borderRadius: 14,
+                    background: "#fff",
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>お気に入り</div>
+                  <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
+                    いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
+                  </div>
+
+                  {favorites.length === 0 ? (
+                    <div
+                      style={{
+                        border: "1px dashed #d6d3d1",
                         borderRadius: 12,
-                        overflow: "hidden",
-                        background: "#fff",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                        padding: 14,
+                        color: "#78716c",
+                        background: "#fafaf9",
+                        fontSize: 13,
+                      }}
+                    >
+                      まだお気に入りはありません
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : isTablet ? "repeat(4, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
+                        gap: 10,
                         minWidth: 0,
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => applyFavorite(favorite)}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          border: "none",
-                          background: "#fff",
-                          padding: 0,
-                          cursor: "pointer",
-                          textAlign: "left",
-                        }}
-                      >
+                      {favorites.map((favorite) => (
                         <div
+                          key={favorite.id}
                           style={{
-                            width: "100%",
-                            aspectRatio: "1 / 1",
-                            background: "#f5f5f4",
+                            border: "1px solid #e7e5e4",
+                            borderRadius: 12,
                             overflow: "hidden",
-                            borderBottom: "1px solid #f0ede9",
+                            background: "#fff",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                            minWidth: 0,
                           }}
                         >
-                          {favorite.previewDataUrl ? (
-                            <img
-                              src={favorite.previewDataUrl}
-                              alt={favorite.designName || favorite.designId}
-                              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                            />
-                          ) : (() => {
-                            const fallbackDesign = designs.find((item) => item.id === favorite.designId);
-                            const fallbackThumb = fallbackDesign?.back || fallbackDesign?.front || "";
-                            return fallbackThumb ? (
-                              <img
-                                src={fallbackThumb}
-                                alt={favorite.designName || favorite.designId}
-                                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8, boxSizing: "border-box" }}
-                              />
-                            ) : null;
-                          })()}
-                        </div>
-
-                        <div style={{ padding: 8, display: "grid", gap: 4 }}>
-                          <div style={{ fontWeight: 800, fontSize: 12, color: "#1c1917", lineHeight: 1.35, wordBreak: "break-word" }}>
-                            {favorite.designName || favorite.designId}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#57534e", lineHeight: 1.35 }}>
-                            {favorite.shirtCode}
-                            {(favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name)
-                              ? ` / ${favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name}`
-                              : ""}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span
+                          <button
+                            type="button"
+                            onClick={() => applyFavorite(favorite)}
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              border: "none",
+                              background: "#fff",
+                              padding: 0,
+                              cursor: "pointer",
+                              textAlign: "left",
+                            }}
+                          >
+                            <div
                               style={{
-                                width: 12,
-                                height: 12,
-                                borderRadius: 999,
-                                background: favorite.inkColor,
-                                border: "1px solid #d6d3d1",
-                                display: "inline-block",
-                                flexShrink: 0,
+                                width: "100%",
+                                aspectRatio: "1 / 1",
+                                background: "#f5f5f4",
+                                overflow: "hidden",
+                                borderBottom: "1px solid #f0ede9",
                               }}
-                            />
-                            <span style={{ fontSize: 11, color: "#78716c" }}>{favorite.fit}</span>
+                            >
+                              {favorite.previewDataUrl ? (
+                                <img
+                                  src={favorite.previewDataUrl}
+                                  alt={favorite.designName || favorite.designId}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                />
+                              ) : (() => {
+                                const fallbackDesign = designs.find((item) => item.id === favorite.designId);
+                                const fallbackThumb = fallbackDesign?.back || fallbackDesign?.front || "";
+                                return fallbackThumb ? (
+                                  <img
+                                    src={fallbackThumb}
+                                    alt={favorite.designName || favorite.designId}
+                                    style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8, boxSizing: "border-box" }}
+                                  />
+                                ) : null;
+                              })()}
+                            </div>
+
+                            <div style={{ padding: 8, display: "grid", gap: 4 }}>
+                              <div style={{ fontWeight: 800, fontSize: 12, color: "#1c1917", lineHeight: 1.35, wordBreak: "break-word" }}>
+                                {favorite.designName || favorite.designId}
+                              </div>
+                              <div style={{ fontSize: 11, color: "#57534e", lineHeight: 1.35 }}>
+                                {favorite.shirtCode}
+                                {(favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name)
+                                  ? ` / ${favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name}`
+                                  : ""}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span
+                                  style={{
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: 999,
+                                    background: favorite.inkColor,
+                                    border: "1px solid #d6d3d1",
+                                    display: "inline-block",
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <span style={{ fontSize: 11, color: "#78716c" }}>{favorite.fit}</span>
+                              </div>
+                            </div>
+                          </button>
+
+                          <div style={{ padding: "0 8px 8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => removeFavorite(favorite.id)}
+                              style={{
+                                ...buttonStyle(false, true),
+                                width: "100%",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                              }}
+                            >
+                              削除
+                            </button>
                           </div>
                         </div>
-                      </button>
-
-                      <div style={{ padding: "0 8px 8px" }}>
-                        <button
-                          type="button"
-                          onClick={() => removeFavorite(favorite.id)}
-                          style={{
-                            ...buttonStyle(false, true),
-                            width: "100%",
-                            fontSize: 12,
-                            padding: "8px 10px",
-                          }}
-                        >
-                          削除
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+
+                {exportText && (
+                  <div
+                    style={{
+                      marginTop: 14,
+                      border: "1px solid #d6d3d1",
+                      borderRadius: 14,
+                      background: "#fff",
+                      padding: 12,
+                      minWidth: 0,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>patch 完全版</div>
+                    <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
+                      design-placement-patches.cjs を丸ごと置き換える用
+                    </div>
+
+                    <textarea
+                      value={exportText}
+                      readOnly
+                      style={{
+                        width: "100%",
+                        minHeight: isMobile ? 200 : 260,
+                        resize: "vertical",
+                        border: "1px solid #d6d3d1",
+                        borderRadius: 10,
+                        padding: 10,
+                        boxSizing: "border-box",
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        background: "#fafaf9",
+                        minWidth: 0,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
-            {exportText && (
-              <div
-                style={{
-                  marginTop: 14,
-                  border: "1px solid #d6d3d1",
-                  borderRadius: 14,
-                  background: "#fff",
-                  padding: 12,
-                  minWidth: 0,
-                }}
-              >
-                <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>patch 完全版</div>
-                <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
-                  design-placement-patches.cjs を丸ごと置き換える用
-                </div>
-
-                <textarea
-                  value={exportText}
-                  readOnly
-                  style={{
-                    width: "100%",
-                    minHeight: isMobile ? 200 : 260,
-                    resize: "vertical",
-                    border: "1px solid #d6d3d1",
-                    borderRadius: 10,
-                    padding: 10,
-                    boxSizing: "border-box",
-                    fontFamily: "monospace",
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                    background: "#fafaf9",
-                    minWidth: 0,
-                  }}
+            <div style={{ display: "grid", gap: isTablet ? 16 : 24, minWidth: 0 }}>
+              <div style={panelStyle(compact)}>
+                <SectionHeader
+                  title="Tシャツ設定"
+                  open={openSections.shirtSettings}
+                  onToggle={() => toggleSection("shirtSettings")}
+                  collapsible={isMobile}
+                  isMobile={isMobile}
+                  fontSize={isMobile ? 18 : 20}
                 />
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div style={{ display: "grid", gap: isTablet ? 16 : 24, minWidth: 0 }}>
-          <div style={panelStyle(compact)}>
-            <SectionHeader
-              title="Tシャツ設定"
-              open={openSections.shirtSettings}
-              onToggle={() => toggleSection("shirtSettings")}
-              collapsible={isMobile}
-              isMobile={isMobile}
-              fontSize={isMobile ? 18 : 20}
-            />
+                {(!isMobile || openSections.shirtSettings) && (
+                  <>
+                    <label style={labelStyle()}>カラーコード</label>
+                    <ShirtPicker shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} compact={compact} />
 
-            {(!isMobile || openSections.shirtSettings) && (
-              <>
-                <label style={labelStyle()}>カラーコード</label>
-                <ShirtPicker shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} compact={compact} />
+                    <div style={{ height: 12 }} />
 
-                <div style={{ height: 12 }} />
-
-                <label style={labelStyle()}>サイズ</label>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: `repeat(${sizeColumns}, 1fr)`,
-                    gap: 6,
-                    marginBottom: 12,
-                    minWidth: 0,
-                  }}
-                >
-                  {ALL_SIZES.map((size) => (
-                    <SizeButton
-                      key={size}
-                      size={size}
-                      active={fit === size}
-                      editable={EDITABLE_SIZES.includes(size)}
-                      onClick={() => setFit(size)}
-                      compact={compact}
-                    />
-                  ))}
-                </div>
-
-                <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
-                  ● が付いているサイズだけ編集できます
-                </div>
-              </>
-            )}
-          </div>
-
-          <div style={panelStyle(compact)}>
-            <SectionHeader
-              title="インクカラー（1色）"
-              open={openSections.inkColor}
-              onToggle={() => toggleSection("inkColor")}
-              collapsible={isMobile}
-              isMobile={isMobile}
-              fontSize={isMobile ? 18 : 20}
-            />
-
-            {(!isMobile || openSections.inkColor) && (
-              <>
-                <label style={labelStyle()}>プリセット</label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                  {inkPresets.map((ink) => (
-                    <button
-                      key={ink.id}
-                      title={ink.name}
-                      onClick={() => setInkColor(ink.color)}
+                    <label style={labelStyle()}>サイズ</label>
+                    <div
                       style={{
-                        minWidth: compact ? 38 : 42,
-                        height: compact ? 38 : 42,
-                        padding: "0 10px",
-                        borderRadius: 999,
-                        background: ink.color,
-                        border:
-                          inkColor.toLowerCase() === ink.color.toLowerCase()
-                            ? "3px solid #111"
-                            : "1px solid #a8a29e",
-                        cursor: "pointer",
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                        color: ink.color === "#ffffff" ? "#111" : "transparent",
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${sizeColumns}, 1fr)`,
+                        gap: 6,
+                        marginBottom: 12,
+                        minWidth: 0,
                       }}
                     >
-                      ●
-                    </button>
-                  ))}
-                </div>
+                      {ALL_SIZES.map((size) => (
+                        <SizeButton
+                          key={size}
+                          size={size}
+                          active={fit === size}
+                          editable={EDITABLE_SIZES.includes(size)}
+                          onClick={() => setFit(size)}
+                          compact={compact}
+                        />
+                      ))}
+                    </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "56px 1fr",
-                    gap: 10,
-                    alignItems: "center",
-                    minWidth: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 50,
-                      height: 42,
-                      border: "1px solid #d6d3d1",
-                      borderRadius: 8,
-                      background: inkColor,
-                    }}
+                    <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
+                      ● が付いているサイズだけ編集できます
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div style={panelStyle(compact)}>
+                <SectionHeader
+                  title="インクカラー（1色）"
+                  open={openSections.inkColor}
+                  onToggle={() => toggleSection("inkColor")}
+                  collapsible={isMobile}
+                  isMobile={isMobile}
+                  fontSize={isMobile ? 18 : 20}
+                />
+
+                {(!isMobile || openSections.inkColor) && (
+                  <>
+                    <label style={labelStyle()}>プリセット</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                      {inkPresets.map((ink) => (
+                        <button
+                          key={ink.id}
+                          title={ink.name}
+                          onClick={() => setInkColor(ink.color)}
+                          style={{
+                            minWidth: compact ? 38 : 42,
+                            height: compact ? 38 : 42,
+                            padding: "0 10px",
+                            borderRadius: 999,
+                            background: ink.color,
+                            border:
+                              inkColor.toLowerCase() === ink.color.toLowerCase()
+                                ? "3px solid #111"
+                                : "1px solid #a8a29e",
+                            cursor: "pointer",
+                            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                            color: ink.color === "#ffffff" ? "#111" : "transparent",
+                          }}
+                        >
+                          ●
+                        </button>
+                      ))}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "56px 1fr",
+                        gap: 10,
+                        alignItems: "center",
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 50,
+                          height: 42,
+                          border: "1px solid #d6d3d1",
+                          borderRadius: 8,
+                          background: inkColor,
+                        }}
+                      />
+                      <div
+                        style={{
+                          ...inputStyle(compact),
+                          background: "#fafaf9",
+                          color: "#44403c",
+                          display: "flex",
+                          alignItems: "center",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {selectedInkName}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div style={panelStyle(compact)}>
+                <SectionHeader
+                  title="デザイン選択"
+                  open={openSections.designPicker}
+                  onToggle={() => toggleSection("designPicker")}
+                  collapsible={isMobile}
+                  isMobile={isMobile}
+                  fontSize={isMobile ? 18 : 20}
+                />
+
+                {(!isMobile || openSections.designPicker) && (
+                  <DesignPicker
+                    designs={designs}
+                    designId={designId}
+                    setDesignId={setDesignId}
+                    setIsSwitchingDesign={setIsSwitchingDesign}
+                    columns={designColumns}
+                    compact={compact}
+                    isMobile={isMobile}
                   />
-                  <div
-                    style={{
-                      ...inputStyle(compact),
-                      background: "#fafaf9",
-                      color: "#44403c",
-                      display: "flex",
-                      alignItems: "center",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {selectedInkName}
-                  </div>
-                </div>
-              </>
-            )}
+                )}
+              </div>
+
+              <div style={panelStyle(compact)}>
+                <SectionHeader
+                  title="デザイン調整"
+                  open={openSections.designAdjust}
+                  onToggle={() => toggleSection("designAdjust")}
+                  collapsible={true}
+                  isMobile={true}
+                  fontSize={isMobile ? 18 : 20}
+                  rightElement={
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        fontSize: 11,
+                        color: isDesignAdjustAuthed ? "#16a34a" : "#78716c",
+                        border: "1px solid #e7e5e4",
+                        borderRadius: 999,
+                        padding: "4px 8px",
+                        background: "#fafaf9",
+                      }}
+                    >
+                      <Lock size={12} />
+                      {isDesignAdjustAuthed ? "認証済み" : "ロック中"}
+                    </span>
+                  }
+                />
+
+                {openSections.designAdjust && (
+                  <>
+                    <div style={{ fontSize: 14, color: "#57534e", lineHeight: 1.7, marginBottom: 14 }}>
+                      ・このセクションは簡易パスワード保護つき
+                      <br />
+                      ・リロード時は designs-data.js を優先（表示は session cache 優先）
+                      <br />
+                      ・編集できるのは 120 / M / XXL のみ
+                      <br />
+                      ・中間サイズは位置のみ補間、版幅は M 基準
+                      <br />
+                      ・スマホは下の「デザイン編集 ON/OFF」で1本指操作を切り替え
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                        gap: 8,
+                        marginBottom: 10,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        X: {currentPlacement?.x?.toFixed?.(1) ?? 0}%
+                      </div>
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        Y: {currentPlacement?.y?.toFixed?.(1) ?? 0}%
+                      </div>
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        版幅: {designWidthCm.toFixed(1)}cm
+                      </div>
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        身丈: {currentBodyLengthCm}cm
+                      </div>
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        身丈比: {widthPercentOfBody.toFixed(1)}%
+                      </div>
+                      <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
+                        種別: {directSaved ? "基準点" : "designs-data / 補間"}
+                      </div>
+                      <div
+                        style={{
+                          ...inputStyle(compact),
+                          background: "#fafaf9",
+                          color: "#44403c",
+                          fontWeight: 700,
+                          gridColumn: isMobile ? "auto" : "1 / -1",
+                        }}
+                      >
+                        編集: {canEditCurrentSize ? "可 / 版幅は常にM基準" : "不可（補間のみ）"}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 14, display: "grid", gap: 8 }}>
+                      <button
+                        style={{
+                          ...buttonStyle(isEditMode, compact),
+                          width: "100%",
+                          opacity: canEditCurrentSize ? 1 : 0.5,
+                          cursor: canEditCurrentSize ? "pointer" : "not-allowed",
+                        }}
+                        disabled={!canEditCurrentSize}
+                        onClick={() => {
+                          if (!canEditCurrentSize) return;
+                          if (!ensureDesignAdjustAuth()) return;
+                          setIsEditMode((prev) => !prev);
+                          setIsDesignSelected(false);
+                        }}
+                      >
+                        デザイン編集 {isEditMode ? "ON" : "OFF"}
+                      </button>
+
+                      <button
+                        style={{
+                          ...buttonStyle(false, compact),
+                          width: "100%",
+                          opacity: canEditCurrentSize ? 1 : 0.5,
+                          cursor: canEditCurrentSize ? "pointer" : "not-allowed",
+                        }}
+                        disabled={!canEditCurrentSize}
+                        onClick={resetPlacement}
+                      >
+                        この面の位置をリセット
+                      </button>
+
+                      <button
+                        style={{
+                          ...buttonStyle(false, compact),
+                          width: "100%",
+                        }}
+                        onClick={exportAllDesignsPatch}
+                      >
+                        全デザインを書き出し
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        borderTop: "1px solid #e7e5e4",
+                        paddingTop: 14,
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "#44403c" }}>デバッグ / 保存クリア</div>
+
+                      <div style={{ fontSize: 12, color: "#78716c", lineHeight: 1.6 }}>
+                        storage key: {PLACEMENT_STORAGE_KEY}
+                        <br />
+                        touch device: {isTouchCapable ? "yes" : "no"}
+                        <br />
+                        auth session: {isDesignAdjustAuthed ? "ok" : "locked"}
+                        <br />
+                        designs-data： 120 {sideDesignsDataMap["120"] ? "あり" : "なし"} / M {sideDesignsDataMap.M ? "あり" : "なし"} / XXL {sideDesignsDataMap.XXL ? "あり" : "なし"}
+                        <br />
+                        端末保存： 120 {sideSavedMap["120"] ? "あり" : "なし"} / M {sideSavedMap.M ? "あり" : "なし"} / XXL {sideSavedMap.XXL ? "あり" : "なし"}
+                      </div>
+
+                      <div
+                        style={{
+                          border: "1px solid #e7e5e4",
+                          borderRadius: 12,
+                          background: "#fafaf9",
+                          padding: 10,
+                          fontSize: 11,
+                          color: "#57534e",
+                          lineHeight: 1.65,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, marginBottom: 6 }}>120デバッグ</div>
+                        <div>designs-data front: x {debugDesignsData120Front.x} / y {debugDesignsData120Front.y} / w {debugDesignsData120Front.widthCm}</div>
+                        <div>designs-data back: x {debugDesignsData120Back.x} / y {debugDesignsData120Back.y} / w {debugDesignsData120Back.widthCm}</div>
+                        <div>storage front: {debugStorage120Front ? `x ${debugStorage120Front.x} / y ${debugStorage120Front.y} / w ${debugStorage120Front.widthCm}` : "none"}</div>
+                        <div>storage back: {debugStorage120Back ? `x ${debugStorage120Back.x} / y ${debugStorage120Back.y} / w ${debugStorage120Back.widthCm}` : "none"}</div>
+                        <div>current side value: x {roundPlacement(currentPlacement).x} / y {roundPlacement(currentPlacement).y} / w {roundPlacement(currentPlacement).widthCm}</div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+                          gap: 8,
+                        }}
+                      >
+                        <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("120")}>
+                          120削除
+                        </button>
+                        <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("M")}>
+                          M削除
+                        </button>
+                        <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("XXL")}>
+                          XXL削除
+                        </button>
+                      </div>
+
+                      <button
+                        style={{
+                          ...buttonStyle(false, compact),
+                          width: "100%",
+                          border: "1px solid #fca5a5",
+                          background: "#fff5f5",
+                        }}
+                        onClick={removeAllStoredBaseSizesForSide}
+                      >
+                        この面の基準点を全部削除
+                      </button>
+
+                      <button
+                        style={{
+                          ...buttonStyle(false, compact),
+                          width: "100%",
+                          border: "1px solid #f59e0b",
+                          background: "#fffaf0",
+                        }}
+                        onClick={removeAllStorageAndReloadDesignsData}
+                      >
+                        端末保存を全削除して designs-data.js に戻す
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-
-          <div style={panelStyle(compact)}>
-            <SectionHeader
-              title="デザイン選択"
-              open={openSections.designPicker}
-              onToggle={() => toggleSection("designPicker")}
-              collapsible={isMobile}
-              isMobile={isMobile}
-              fontSize={isMobile ? 18 : 20}
-            />
-
-            {(!isMobile || openSections.designPicker) && (
-              <DesignPicker
-                designs={designs}
-                designId={designId}
-                setDesignId={setDesignId}
-                setIsSwitchingDesign={setIsSwitchingDesign}
-                columns={designColumns}
-                compact={compact}
-                isMobile={isMobile}
-              />
-            )}
-          </div>
-
-          <div style={panelStyle(compact)}>
-            <SectionHeader
-              title="デザイン調整"
-              open={openSections.designAdjust}
-              onToggle={() => toggleSection("designAdjust")}
-              collapsible={true}
-              isMobile={true}
-              fontSize={isMobile ? 18 : 20}
-            />
-
-            {openSections.designAdjust && (
-              <>
-                <div style={{ fontSize: 14, color: "#57534e", lineHeight: 1.7, marginBottom: 14 }}>
-                  ・リロード時は designs-data.js を優先（表示は session cache 優先）
-                  <br />
-                  ・編集できるのは 120 / M / XXL のみ
-                  <br />
-                  ・中間サイズは位置のみ補間、版幅は M 基準
-                  <br />
-                  ・スマホは下の「デザイン編集 ON/OFF」で1本指操作を切り替え
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                    gap: 8,
-                    marginBottom: 10,
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    X: {currentPlacement?.x?.toFixed?.(1) ?? 0}%
-                  </div>
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    Y: {currentPlacement?.y?.toFixed?.(1) ?? 0}%
-                  </div>
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    版幅: {designWidthCm.toFixed(1)}cm
-                  </div>
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    身丈: {currentBodyLengthCm}cm
-                  </div>
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    身丈比: {widthPercentOfBody.toFixed(1)}%
-                  </div>
-                  <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
-                    種別: {directSaved ? "基準点" : "designs-data / 補間"}
-                  </div>
-                  <div
-                    style={{
-                      ...inputStyle(compact),
-                      background: "#fafaf9",
-                      color: "#44403c",
-                      fontWeight: 700,
-                      gridColumn: isMobile ? "auto" : "1 / -1",
-                    }}
-                  >
-                    編集: {canEditCurrentSize ? "可 / 版幅は常にM基準" : "不可（補間のみ）"}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 14, display: "grid", gap: 8 }}>
-                  <button
-                    style={{
-                      ...buttonStyle(isEditMode, compact),
-                      width: "100%",
-                      opacity: canEditCurrentSize ? 1 : 0.5,
-                      cursor: canEditCurrentSize ? "pointer" : "not-allowed",
-                    }}
-                    disabled={!canEditCurrentSize}
-                    onClick={() => {
-                      if (!canEditCurrentSize) return;
-                      setIsEditMode((prev) => !prev);
-                      setIsDesignSelected(false);
-                    }}
-                  >
-                    デザイン編集 {isEditMode ? "ON" : "OFF"}
-                  </button>
-
-                  <button
-                    style={{
-                      ...buttonStyle(false, compact),
-                      width: "100%",
-                      opacity: canEditCurrentSize ? 1 : 0.5,
-                      cursor: canEditCurrentSize ? "pointer" : "not-allowed",
-                    }}
-                    disabled={!canEditCurrentSize}
-                    onClick={resetPlacement}
-                  >
-                    この面の位置をリセット
-                  </button>
-
-                  <button
-                    style={{
-                      ...buttonStyle(false, compact),
-                      width: "100%",
-                    }}
-                    onClick={exportAllDesignsPatch}
-                  >
-                    全デザインを書き出し
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    borderTop: "1px solid #e7e5e4",
-                    paddingTop: 14,
-                    display: "grid",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#44403c" }}>デバッグ / 保存クリア</div>
-
-                  <div style={{ fontSize: 12, color: "#78716c", lineHeight: 1.6 }}>
-                    storage key: {PLACEMENT_STORAGE_KEY}
-                    <br />
-                    touch device: {isTouchCapable ? "yes" : "no"}
-                    <br />
-                    designs-data： 120 {sideDesignsDataMap["120"] ? "あり" : "なし"} / M {sideDesignsDataMap.M ? "あり" : "なし"} / XXL {sideDesignsDataMap.XXL ? "あり" : "なし"}
-                    <br />
-                    端末保存： 120 {sideSavedMap["120"] ? "あり" : "なし"} / M {sideSavedMap.M ? "あり" : "なし"} / XXL {sideSavedMap.XXL ? "あり" : "なし"}
-                  </div>
-
-                  <div
-                    style={{
-                      border: "1px solid #e7e5e4",
-                      borderRadius: 12,
-                      background: "#fafaf9",
-                      padding: 10,
-                      fontSize: 11,
-                      color: "#57534e",
-                      lineHeight: 1.65,
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    <div style={{ fontWeight: 800, marginBottom: 6 }}>120デバッグ</div>
-                    <div>designs-data front: x {debugDesignsData120Front.x} / y {debugDesignsData120Front.y} / w {debugDesignsData120Front.widthCm}</div>
-                    <div>designs-data back: x {debugDesignsData120Back.x} / y {debugDesignsData120Back.y} / w {debugDesignsData120Back.widthCm}</div>
-                    <div>storage front: {debugStorage120Front ? `x ${debugStorage120Front.x} / y ${debugStorage120Front.y} / w ${debugStorage120Front.widthCm}` : "none"}</div>
-                    <div>storage back: {debugStorage120Back ? `x ${debugStorage120Back.x} / y ${debugStorage120Back.y} / w ${debugStorage120Back.widthCm}` : "none"}</div>
-                    <div>current side value: x {roundPlacement(currentPlacement).x} / y {roundPlacement(currentPlacement).y} / w {roundPlacement(currentPlacement).widthCm}</div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-                      gap: 8,
-                    }}
-                  >
-                    <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("120")}>
-                      120削除
-                    </button>
-                    <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("M")}>
-                      M削除
-                    </button>
-                    <button style={buttonStyle(false, compact)} onClick={() => removeStoredBaseSize("XXL")}>
-                      XXL削除
-                    </button>
-                  </div>
-
-                  <button
-                    style={{
-                      ...buttonStyle(false, compact),
-                      width: "100%",
-                      border: "1px solid #fca5a5",
-                      background: "#fff5f5",
-                    }}
-                    onClick={removeAllStoredBaseSizesForSide}
-                  >
-                    この面の基準点を全部削除
-                  </button>
-
-                  <button
-                    style={{
-                      ...buttonStyle(false, compact),
-                      width: "100%",
-                      border: "1px solid #f59e0b",
-                      background: "#fffaf0",
-                    }}
-                    onClick={removeAllStorageAndReloadDesignsData}
-                  >
-                    端末保存を全削除して designs-data.js に戻す
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
         )}
       </div>
     </div>
