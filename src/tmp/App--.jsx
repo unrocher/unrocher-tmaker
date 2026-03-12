@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.1.0-touch-final";
+const APP_VERSION = "V04.0.4.7-preview-dpr-native-pinch";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -49,10 +49,9 @@ const DESIGNS_DATA_VERSION = "from-generate-designs-current";
  */
 const DESIGN_ADJUST_PASSWORD = "CHANGE-ME-UNROCHER";
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 4;
-const HANDLE_SIZE = 24;
-const HANDLE_HIT_SIZE = 52;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+const HANDLE_SIZE = 14;
 const MIN_WIDTH_CM = 5;
 const MAX_WIDTH_CM = 45;
 const HIGH_RES_EXPORT_SIZE = 3000;
@@ -708,10 +707,6 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function getTouchDistance(t1, t2) {
-  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-}
-
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -733,11 +728,9 @@ function getShirtScale(sizeKey) {
 
 function getCanvasPoint(clientX, clientY, canvas) {
   const rect = canvas.getBoundingClientRect();
-  const logicalWidth = canvas.clientWidth || rect.width || canvas.width;
-  const logicalHeight = canvas.clientHeight || rect.height || canvas.height;
   return {
-    x: ((clientX - rect.left) / Math.max(rect.width, 1)) * logicalWidth,
-    y: ((clientY - rect.top) / Math.max(rect.height, 1)) * logicalHeight,
+    x: ((clientX - rect.left) / rect.width) * canvas.width,
+    y: ((clientY - rect.top) / rect.height) * canvas.height,
   };
 }
 
@@ -745,9 +738,10 @@ function drawSelectionBox(ctx, info) {
   if (!info) return;
 
   const { designX, designY, designW, designH } = info;
-  const hx = info.handleX ?? (designX + designW);
-  const hy = info.handleY ?? (designY + designH);
+  const hx = designX + designW;
+  const hy = designY + designH;
   const zoom = info.zoom || 1;
+  const half = HANDLE_SIZE / 2;
 
   ctx.save();
   ctx.strokeStyle = "#0ea5e9";
@@ -758,29 +752,26 @@ function drawSelectionBox(ctx, info) {
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#0ea5e9";
   ctx.lineWidth = 2 / zoom;
-  const handleSize = HANDLE_SIZE / Math.max(zoom, 0.0001);
-  ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
-  ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+  ctx.beginPath();
+  ctx.rect(hx - half / zoom, hy - half / zoom, HANDLE_SIZE / zoom, HANDLE_SIZE / zoom);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
 function hitResizeHandle(point, info) {
   if (!info) return false;
-  const half = HANDLE_HIT_SIZE / 2;
+  const zoom = info.zoom || 1;
+  const hx = info.designX + info.designW;
+  const hy = info.designY + info.designH;
+  const half = (HANDLE_SIZE / 2) / zoom;
 
-  const squareHit =
-    point.x >= info.handleX - half &&
-    point.x <= info.handleX + half &&
-    point.y >= info.handleY - half &&
-    point.y <= info.handleY + half;
-
-  const cornerZoneHit =
-    point.x >= info.designX + info.designW * 0.68 &&
-    point.x <= info.designX + info.designW + half &&
-    point.y >= info.designY + info.designH * 0.68 &&
-    point.y <= info.designY + info.designH + half;
-
-  return squareHit || cornerZoneHit;
+  return (
+    point.x >= hx - half &&
+    point.x <= hx + half &&
+    point.y >= hy - half &&
+    point.y <= hy + half
+  );
 }
 
 function hitDesignBody(point, info) {
@@ -1384,12 +1375,6 @@ export default function App() {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const renderInfoRef = useRef(null);
-  const zoomRef = useRef(1);
-  const pinchRef = useRef({ active: false, startDistance: 0, startZoom: 1 });
-  const shirtImgRef = useRef(null);
-  const svgImgRef = useRef(null);
-  const shirtImageCacheRef = useRef(new Map());
-  const svgImageCacheRef = useRef(new Map());
 
   const dragRef = useRef({
     active: false,
@@ -1432,7 +1417,6 @@ export default function App() {
   const [svgCache, setSvgCache] = useState({});
   const [canvasSize, setCanvasSize] = useState({ width: 900, height: 900 });
   const [status, setStatus] = useState("画像とSVGを読み込み中...");
-  const [imageEpoch, setImageEpoch] = useState(0);
   const [isDesignSelected, setIsDesignSelected] = useState(false);
   const [hoverMode, setHoverMode] = useState(null);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
@@ -1458,10 +1442,6 @@ export default function App() {
     const firstDesignId = designs[0]?.id || "";
     return buildPlacementStateFromDesignsData(firstDesignId, "M");
   });
-
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
 
   useEffect(() => {
     saveFavoritesToStorage(favorites);
@@ -1509,15 +1489,6 @@ export default function App() {
     const recolored = forceSingleColorSvg(activeSvgRaw, inkColor);
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(recolored)}`;
   }, [activeSvgRaw, inkColor]);
-
-  const svgDataUrlBySide = useMemo(() => {
-    const frontRaw = svgCache[designId]?.front || "";
-    const backRaw = svgCache[designId]?.back || "";
-    return {
-      front: frontRaw ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(forceSingleColorSvg(frontRaw, inkColor))}` : "",
-      back: backRaw ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(forceSingleColorSvg(backRaw, inkColor))}` : "",
-    };
-  }, [svgCache, designId, inkColor]);
 
   const currentSelectionLabel = `${selectedDesign?.name || designId || "デザイン未選択"} / ${shirtCode || "-"} / ${fit || "-"} / ${shirts.find((s) => s.code === shirtCode)?.name || ""}`.trim();
 
@@ -1882,120 +1853,8 @@ export default function App() {
   }, [designId, fit, placement, canEditCurrentSize]);
 
   useEffect(() => {
-    if (!baseVariant) {
-      shirtImgRef.current = null;
-      return;
-    }
+    if (isSwitchingDesign) return;
 
-    let cancelled = false;
-    const cache = shirtImageCacheRef.current;
-
-    const primeShirtImage = (src, { activate = false } = {}) => {
-      if (!src) return null;
-
-      const cached = cache.get(src);
-      if (cached?.complete) {
-        if (activate) {
-          shirtImgRef.current = cached;
-        }
-        return cached;
-      }
-
-      if (cached) {
-        return cached;
-      }
-
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        cache.set(src, img);
-        if (cancelled) return;
-        if (activate && shirtSrc === src) {
-          shirtImgRef.current = img;
-          setStatus(`Tシャツ画像読み込み完了: ${selectedShirt?.code || shirtCode} / ${side}`);
-        }
-        setImageEpoch((prev) => prev + 1);
-      };
-      img.onerror = () => {
-        if (!cancelled && activate && shirtSrc === src) {
-          setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
-        }
-      };
-      cache.set(src, img);
-      img.src = src;
-      return img;
-    };
-
-    const activeSrc = shirtSrc;
-    const alternateSrc = side === "front" ? (baseVariant?.back || "") : (baseVariant?.front || "");
-
-    primeShirtImage(activeSrc, { activate: true });
-    primeShirtImage(alternateSrc, { activate: false });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [baseVariant, shirtSrc, selectedShirt, shirtCode, side]);
-
-  useEffect(() => {
-    const cache = svgImageCacheRef.current;
-    let cancelled = false;
-
-    const primeSvgImage = (src, { activate = false } = {}) => {
-      if (!src) return null;
-
-      const cached = cache.get(src);
-      if (cached?.complete) {
-        if (activate) {
-          svgImgRef.current = cached;
-        }
-        return cached;
-      }
-
-      if (cached) {
-        return cached;
-      }
-
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        cache.set(src, img);
-        if (cancelled) return;
-        if (activate && svgDataUrl === src) {
-          svgImgRef.current = img;
-          setStatus("SVG画像読み込み完了");
-        }
-        setImageEpoch((prev) => prev + 1);
-      };
-      img.onerror = () => {
-        if (!cancelled && activate && svgDataUrl === src) {
-          setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
-        }
-      };
-      cache.set(src, img);
-      img.src = src;
-      return img;
-    };
-
-    const activeSrc = svgDataUrl;
-    const alternateSrc = side === "front" ? svgDataUrlBySide.back : svgDataUrlBySide.front;
-
-    if (!activeSrc) {
-      svgImgRef.current = null;
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    primeSvgImage(activeSrc, { activate: true });
-    primeSvgImage(alternateSrc, { activate: false });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [svgDataUrl, svgDataUrlBySide, side]);
-
-  useEffect(() => {
     if (!shirtSrc) {
       setStatus(`画像なし: ${selectedShirt?.code || "?"} / ${side}`);
       return;
@@ -2007,12 +1866,16 @@ export default function App() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const shirtImg = shirtImgRef.current;
-    const svgImg = svgImgRef.current;
+    const shirtImg = new Image();
+    const svgImg = new Image();
+    shirtImg.crossOrigin = "anonymous";
+    svgImg.crossOrigin = "anonymous";
 
-    if (!shirtImg || !svgImg || !shirtImg.complete || !svgImg.complete || !shirtImg.naturalWidth || !svgImg.naturalWidth) return;
+    let shirtLoaded = false;
+    let svgLoaded = false;
 
     const render = () => {
+      if (!shirtLoaded || !svgLoaded) return;
 
       const logicalWidth = canvasSize.width;
       const logicalHeight = canvasSize.height;
@@ -2081,8 +1944,6 @@ export default function App() {
         zoom,
         panX: pan.x,
         panY: pan.y,
-        handleX: designX + designW,
-        handleY: designY + designH,
       };
 
       ctx.save();
@@ -2091,17 +1952,28 @@ export default function App() {
       ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
       ctx.restore();
 
-      if (canEditActive) {
+      if (isDesignSelected && canEditCurrentSize) {
         drawSelectionBox(ctx, renderInfoRef.current);
       }
 
       ctx.restore();
 
-      if (isSwitchingDesign) setIsSwitchingDesign(false);
       setStatus(`表示OK: ${selectedShirt?.code} / ${fit} / ${side} / ${selectedDesign?.name}`);
     };
 
-    render();
+    shirtImg.onload = () => {
+      shirtLoaded = true;
+      render();
+    };
+    svgImg.onload = () => {
+      svgLoaded = true;
+      render();
+    };
+    shirtImg.onerror = () => setStatus(`Tシャツ画像の読み込みに失敗: ${shirtSrc}`);
+    svgImg.onerror = () => setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
+
+    shirtImg.src = shirtSrc;
+    svgImg.src = svgDataUrl;
   }, [
     shirtSrc,
     svgDataUrl,
@@ -2117,7 +1989,6 @@ export default function App() {
     canEditCurrentSize,
     isSwitchingDesign,
     previewDpr,
-    imageEpoch,
   ]);
 
   const updateCurrentPlacement = (patch) => {
@@ -2496,16 +2367,10 @@ export default function App() {
     setZoom((prev) => clamp(prev * factor, MIN_ZOOM, MAX_ZOOM));
   };
 
-  const toLogicalPoint = (point, canvas) => {
-    const logicalWidth = canvas.clientWidth || canvasSize.width || canvas.width;
-    const logicalHeight = canvas.clientHeight || canvasSize.height || canvas.height;
-    const activeZoom = Math.max(zoomRef.current, 0.0001);
-
-    return {
-      x: (point.x - (logicalWidth / 2 + pan.x)) / activeZoom + logicalWidth / 2,
-      y: (point.y - (logicalHeight / 2 + pan.y)) / activeZoom + logicalHeight / 2,
-    };
-  };
+  const toLogicalPoint = (point, canvas) => ({
+    x: (point.x - (canvas.width / 2 + pan.x)) / zoom + canvas.width / 2,
+    y: (point.y - (canvas.height / 2 + pan.y)) / zoom + canvas.height / 2,
+  });
 
   const startSinglePan = (e) => {
     panRef.current = {
@@ -2527,10 +2392,7 @@ export default function App() {
     touchRef.current.active = false;
     touchRef.current.mode = null;
     touchRef.current.startDistance = 0;
-    touchRef.current.startZoom = zoomRef.current;
-    pinchRef.current.active = false;
-    pinchRef.current.startDistance = 0;
-    pinchRef.current.startZoom = zoomRef.current;
+    touchRef.current.startZoom = zoom;
   };
 
   const stopSingleTouchInteraction = () => {
@@ -2673,20 +2535,22 @@ export default function App() {
     if (!canvas) return;
 
     if (e.touches.length === 2) {
+      const [t1, t2] = e.touches;
       stopSingleTouchInteraction();
       setIsDesignSelected(false);
-      const [t1, t2] = e.touches;
-      const startDistance = getTouchDistance(t1, t2);
       touchRef.current.active = true;
       touchRef.current.mode = "pinch";
-      touchRef.current.startDistance = startDistance;
-      touchRef.current.startZoom = zoomRef.current;
-      pinchRef.current = { active: true, startDistance, startZoom: zoomRef.current };
+      touchRef.current.startDistance = getTouchDistance(t1, t2);
+      touchRef.current.startZoom = zoom;
       e.preventDefault();
       return;
     }
 
-    if (e.touches.length !== 1 || pinchRef.current.active || touchRef.current.mode === "pinch") return;
+    if (e.touches.length !== 1) return;
+    if (touchRef.current.mode === "pinch") {
+      e.preventDefault();
+      return;
+    }
 
     const info = renderInfoRef.current;
     if (!currentPlacement || !info) return;
@@ -2695,7 +2559,7 @@ export default function App() {
     const point = getCanvasPoint(touch.clientX, touch.clientY, canvas);
     const logicalPoint = toLogicalPoint(point, canvas);
 
-    if (!canEditActive) {
+    if (interactionMode === "pan") {
       panRef.current = {
         active: true,
         pointerId: "touch",
@@ -2704,13 +2568,12 @@ export default function App() {
         startOffsetX: pan.x,
         startOffsetY: pan.y,
       };
-      dragRef.current.active = false;
       setIsDesignSelected(false);
       e.preventDefault();
       return;
     }
 
-    if (hitResizeHandle(logicalPoint, info)) {
+    if (canEditActive && hitResizeHandle(logicalPoint, info)) {
       dragRef.current = {
         active: true,
         mode: "resize-se",
@@ -2721,13 +2584,12 @@ export default function App() {
         startPlacementY: currentPlacement.y,
         startWidthCm: currentPlacement.widthCm,
       };
-      panRef.current.active = false;
       setIsDesignSelected(true);
       e.preventDefault();
       return;
     }
 
-    if (hitDesignBody(logicalPoint, info)) {
+    if (canEditActive && hitDesignBody(logicalPoint, info)) {
       dragRef.current = {
         active: true,
         mode: "move",
@@ -2738,23 +2600,12 @@ export default function App() {
         startPlacementY: currentPlacement.y,
         startWidthCm: currentPlacement.widthCm,
       };
-      panRef.current.active = false;
       setIsDesignSelected(true);
       e.preventDefault();
       return;
     }
 
-    panRef.current = {
-      active: true,
-      pointerId: "touch",
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startOffsetX: pan.x,
-      startOffsetY: pan.y,
-    };
-    dragRef.current.active = false;
     setIsDesignSelected(false);
-    e.preventDefault();
   };
 
   const onTouchMove = (e) => {
@@ -2763,37 +2614,36 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    if (e.touches.length === 2 && !pinchRef.current.active) {
-      stopSingleTouchInteraction();
-      const [t1, t2] = e.touches;
-      const startDistance = getTouchDistance(t1, t2);
-      touchRef.current.active = true;
-      touchRef.current.mode = "pinch";
-      touchRef.current.startDistance = startDistance;
-      touchRef.current.startZoom = zoomRef.current;
-      pinchRef.current = { active: true, startDistance, startZoom: zoomRef.current };
-      e.preventDefault();
-      return;
-    }
-
-    if (e.touches.length === 2 && pinchRef.current.active) {
+    if (e.touches.length === 2) {
       const [t1, t2] = e.touches;
       const currentDistance = getTouchDistance(t1, t2);
-      const scale = currentDistance / Math.max(pinchRef.current.startDistance || 1, 1);
-      const nextZoom = clamp(pinchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
+
+      if (!touchRef.current.active || touchRef.current.mode !== "pinch" || touchRef.current.startDistance <= 0) {
+        stopSingleTouchInteraction();
+        setIsDesignSelected(false);
+        touchRef.current.active = true;
+        touchRef.current.mode = "pinch";
+        touchRef.current.startDistance = currentDistance;
+        touchRef.current.startZoom = zoom;
+        e.preventDefault();
+        return;
+      }
+
+      const scale = currentDistance / touchRef.current.startDistance;
+      const nextZoom = clamp(touchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
       setZoom(nextZoom);
-      zoomRef.current = nextZoom;
       e.preventDefault();
       return;
     }
 
-    if (pinchRef.current.active || touchRef.current.mode === "pinch") {
+    if (touchRef.current.mode === "pinch") {
       e.preventDefault();
       return;
     }
 
     const info = renderInfoRef.current;
-    if (!info || e.touches.length !== 1) return;
+    if (!info) return;
+    if (e.touches.length !== 1) return;
 
     const touch = e.touches[0];
 
@@ -2816,6 +2666,7 @@ export default function App() {
     if (dragRef.current.mode === "move") {
       const dxCanvas = logicalPoint.x - dragRef.current.startCanvasX;
       const dyCanvas = logicalPoint.y - dragRef.current.startCanvasY;
+
       const deltaXPercent = (dxCanvas / info.drawW) * 100;
       const deltaYPercent = (dyCanvas / info.drawH) * 100;
 
@@ -2841,24 +2692,21 @@ export default function App() {
   const onTouchEnd = (e) => {
     if (!isTouchCapable) return;
 
-    if (e.touches.length < 2) {
-      touchRef.current.active = false;
-      touchRef.current.mode = null;
-      touchRef.current.startDistance = 0;
-      touchRef.current.startZoom = zoomRef.current;
-      pinchRef.current.active = false;
-      pinchRef.current.startDistance = 0;
-      pinchRef.current.startZoom = zoomRef.current;
-    }
-
-    if (e.touches.length === 0) {
-      stopSingleTouchInteraction();
+    if (touchRef.current.mode === "pinch") {
+      if (e.touches.length < 2) {
+        touchRef.current.active = false;
+        touchRef.current.mode = null;
+        touchRef.current.startDistance = 0;
+        touchRef.current.startZoom = zoom;
+        stopSingleTouchInteraction();
+      }
       return;
     }
 
-    if (e.touches.length === 1 && !pinchRef.current.active) {
+    if (e.touches.length === 1) {
       const touch = e.touches[0];
-      if (!dragRef.current.active) {
+
+      if (interactionMode === "pan") {
         panRef.current = {
           active: true,
           pointerId: "touch",
@@ -2867,8 +2715,13 @@ export default function App() {
           startOffsetX: pan.x,
           startOffsetY: pan.y,
         };
+      } else {
+        stopSingleTouchInteraction();
       }
+      return;
     }
+
+    clearInteractionState();
   };
 
   const endDrag = (e) => {

@@ -560,48 +560,6 @@ export const shirts = [
     }
   },
   {
-    "code": "206",
-    "name": "ティールグリーン",
-    "variants": {
-      "M": {
-        "front": "/shirts/00085-CVT-206_M.jpg",
-        "back": "/shirts/00085-CVT-206_M-URA.jpg"
-      },
-      "WM": {
-        "front": "/shirts/00085-CVT-206_WM.jpg",
-        "back": "/shirts/00085-CVT-206_WM-URA.jpg"
-      }
-    }
-  },
-  {
-    "code": "207",
-    "name": "ココアブラウン",
-    "variants": {
-      "M": {
-        "front": "/shirts/00085-CVT-207_M.jpg",
-        "back": "/shirts/00085-CVT-207_M-URA.jpg"
-      },
-      "WM": {
-        "front": "/shirts/00085-CVT-207_WM.jpg",
-        "back": "/shirts/00085-CVT-207_WM-URA.jpg"
-      }
-    }
-  },
-  {
-    "code": "213",
-    "name": "スモーキーイエロー",
-    "variants": {
-      "M": {
-        "front": "/shirts/00085-CVT-213_M.jpg",
-        "back": "/shirts/00085-CVT-213_M-URA.jpg"
-      },
-      "WM": {
-        "front": "/shirts/00085-CVT-213_WM.jpg",
-        "back": "/shirts/00085-CVT-213_WM-URA.jpg"
-      }
-    }
-  },
-  {
     "code": "223",
     "name": "スモークブラック",
     "variants": {
@@ -610,8 +568,7 @@ export const shirts = [
         "front": "/shirts/00085-CVT-223_M.jpg"
       },
       "WM": {
-        "back": "/shirts/00085-CVT-223_WM-URA.jpg",
-        "front": "/shirts/00085-CVT-223_WM.jpg"
+        "back": "/shirts/00085-CVT-223_WM-URA.jpg"
       }
     }
   },
@@ -644,20 +601,6 @@ export const shirts = [
     }
   },
   {
-    "code": "422",
-    "name": "フロスティコーラル",
-    "variants": {
-      "M": {
-        "front": "/shirts/00085-CVT-422_M.jpg",
-        "back": "/shirts/00085-CVT-422_M-URA.jpg"
-      },
-      "WM": {
-        "front": "/shirts/00085-CVT-422_WM.jpg",
-        "back": "/shirts/00085-CVT-422_WM-URA.jpg"
-      }
-    }
-  },
-  {
     "code": "423",
     "name": "ライトセージ",
     "variants": {
@@ -668,20 +611,6 @@ export const shirts = [
       "WM": {
         "back": "/shirts/00085-CVT-423_WM-URA.jpg",
         "front": "/shirts/00085-CVT-423_WM.jpg"
-      }
-    }
-  },
-  {
-    "code": "424",
-    "name": "モスグレー",
-    "variants": {
-      "M": {
-        "front": "/shirts/00085-CVT-424_M.jpg",
-        "back": "/shirts/00085-CVT-424_M-URA.jpg"
-      },
-      "WM": {
-        "front": "/shirts/00085-CVT-424_WM.jpg",
-        "back": "/shirts/00085-CVT-424_WM-URA.jpg"
       }
     }
   },

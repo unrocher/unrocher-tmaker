@@ -429,7 +429,7 @@ export const designs = [
     "name": "Climbpuffy",
     "front": "/designs/climbpuffy/climbpuffy_front.svg",
     "back": "/designs/climbpuffy/climbpuffy_back.svg",
-    baseOrderUrl: "https://unrocher.theshop.jp/items/104329869",
+    baseOrderUrl: "https://unrocher.theshop.jp/items/104961066",
 "anchor": {
       "x": 50,
       "y": 30
@@ -1024,7 +1024,7 @@ export const designs = [
     "name": "Seekwords",
     "front": "/designs/seekwords/seekwords_front.svg",
     "back": "/designs/seekwords/seekwords_back.svg",
-    baseOrderUrl: "",
+    baseOrderUrl: "https://unrocher.theshop.jp/items/104329869",
 "anchor": {
       "x": 50,
       "y": 30
