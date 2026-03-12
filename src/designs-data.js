@@ -4,7 +4,8 @@ export const designs = [
     "name": "9aniv A",
     "front": "/designs/9aniv-A/9aniv-A_front.svg",
     "back": "/designs/9aniv-A/9aniv-A_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/128240788",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -88,7 +89,8 @@ export const designs = [
     "name": "9aniv B",
     "front": "/designs/9aniv-B/9aniv-B_front.svg",
     "back": "/designs/9aniv-B/9aniv-B_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/128240788",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -172,7 +174,8 @@ export const designs = [
     "name": "BarcodeV2",
     "front": "/designs/barcodeV2/barcodeV2_front.svg",
     "back": "/designs/barcodeV2/barcodeV2_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/135254398",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -256,7 +259,8 @@ export const designs = [
     "name": "Chalkpuffy",
     "front": "/designs/chalkpuffy/chalkpuffy_front.svg",
     "back": "/designs/chalkpuffy/chalkpuffy_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/82608094",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -340,7 +344,8 @@ export const designs = [
     "name": "Climbkanji",
     "front": "/designs/climbkanji/climbkanji_front.svg",
     "back": "/designs/climbkanji/climbkanji_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/97077346",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -424,7 +429,8 @@ export const designs = [
     "name": "Climbpuffy",
     "front": "/designs/climbpuffy/climbpuffy_front.svg",
     "back": "/designs/climbpuffy/climbpuffy_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/104329869",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -508,7 +514,8 @@ export const designs = [
     "name": "DotclimbA",
     "front": "/designs/dotclimbA/dotclimbA_front.svg",
     "back": "/designs/dotclimbA/dotclimbA_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/82484739",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -592,7 +599,8 @@ export const designs = [
     "name": "DotclimbB",
     "front": "/designs/dotclimbB/dotclimbB_front.svg",
     "back": "/designs/dotclimbB/dotclimbB_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/82484739",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -676,7 +684,8 @@ export const designs = [
     "name": "Escr",
     "front": "/designs/escr/escr_front.svg",
     "back": "/designs/escr/escr_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/90246432",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -760,7 +769,8 @@ export const designs = [
     "name": "Graffiti",
     "front": "/designs/graffiti/graffiti_front.svg",
     "back": "/designs/graffiti/graffiti_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/105013792",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -844,7 +854,8 @@ export const designs = [
     "name": "Innnnnmu",
     "front": "/designs/innnnnmu/innnnnmu_front.svg",
     "back": "/designs/innnnnmu/innnnnmu_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/82384498",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -928,7 +939,8 @@ export const designs = [
     "name": "Mechagirl",
     "front": "/designs/mechagirl/mechagirl_front.svg",
     "back": "/designs/mechagirl/mechagirl_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/116091842",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -1012,7 +1024,8 @@ export const designs = [
     "name": "Seekwords",
     "front": "/designs/seekwords/seekwords_front.svg",
     "back": "/designs/seekwords/seekwords_back.svg",
-    "anchor": {
+    baseOrderUrl: "",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -1092,11 +1105,12 @@ export const designs = [
     }
   },
   {
-    "id": "typo",
-    "name": "Typo",
+    "id": "pictogram",
+    "name": "pictogram",
     "front": "/designs/typo/typo_front.svg",
     "back": "/designs/typo/typo_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/138307687",
+"anchor": {
       "x": 50,
       "y": 30
     },
@@ -1180,7 +1194,8 @@ export const designs = [
     "name": "Unrocher Logo",
     "front": "/designs/unrocher-logo/unrocher-logo_front.svg",
     "back": "/designs/unrocher-logo/unrocher-logo_back.svg",
-    "anchor": {
+    baseOrderUrl: "https://unrocher.theshop.jp/items/82642178",
+"anchor": {
       "x": 50,
       "y": 30
     },

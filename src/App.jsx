@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.0.3.8-design-adjust-password-lock";
+const APP_VERSION = "V04.0.3.9-base-order-button";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -47,7 +47,7 @@ const DESIGNS_DATA_VERSION = "from-generate-designs-current";
  * 本気のセキュリティにはなりません。
  * 外部公開ページでの誤操作防止用として使ってください。
  */
-const DESIGN_ADJUST_PASSWORD = "unr0ch3r";
+const DESIGN_ADJUST_PASSWORD = "CHANGE-ME-UNROCHER";
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
@@ -356,6 +356,8 @@ function OrderPanel({
   setSavedOrders,
   onBackToMaker,
   onAddCurrentSelection,
+  onOpenBaseOrderPage,
+  hasBaseOrderUrl,
   currentSelectionLabel,
   designs,
   shirts,
@@ -445,6 +447,23 @@ function OrderPanel({
             <IconButton title="保存" ariaLabel="発注書を保存" compact={compact} onClick={saveDraft}>
               <Save size={18} />
             </IconButton>
+            <button
+              type="button"
+              title={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+              aria-label={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+              style={{
+                ...buttonStyle(false, compact),
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                opacity: hasBaseOrderUrl ? 1 : 0.5,
+                cursor: hasBaseOrderUrl ? "pointer" : "not-allowed",
+              }}
+              onClick={onOpenBaseOrderPage}
+              disabled={!hasBaseOrderUrl}
+            >
+              <span>BASEで注文する</span>
+            </button>
             <IconButton title="印刷" ariaLabel="発注書を印刷" compact={compact} onClick={() => window.print()}>
               <Printer size={18} />
             </IconButton>
@@ -1414,6 +1433,8 @@ export default function App() {
 
   const selectedShirt = useMemo(() => shirts.find((s) => s.code === shirtCode) ?? shirts[0], [shirtCode]);
   const selectedDesign = useMemo(() => designs.find((d) => d.id === designId) ?? designs[0], [designId]);
+  const currentBaseOrderUrl = selectedDesign?.baseOrderUrl?.trim?.() || "";
+  const hasBaseOrderUrl = Boolean(currentBaseOrderUrl);
   const baseVariant = useMemo(() => getBaseVariantForShirt(selectedShirt), [selectedShirt]);
 
   const shirtSrc = side === "front" ? baseVariant?.front : baseVariant?.back;
@@ -1490,6 +1511,18 @@ export default function App() {
   const openOrderWithCurrentSelection = () => {
     addCurrentSelectionToOrder();
     setAppView("order");
+  };
+
+  const openBaseOrderPage = () => {
+    if (typeof window === "undefined") return;
+
+    const url = currentBaseOrderUrl;
+    if (!url) {
+      setStatus(`このデザインはまだBASE注文ページが設定されていません: ${selectedDesign?.name || designId}`);
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const getPlacementStateForView = (nextDesignId, nextFit) => {
@@ -2531,6 +2564,8 @@ export default function App() {
             setSavedOrders={setSavedOrders}
             onBackToMaker={() => setAppView("maker")}
             onAddCurrentSelection={addCurrentSelectionToOrder}
+            onOpenBaseOrderPage={openBaseOrderPage}
+            hasBaseOrderUrl={hasBaseOrderUrl}
             currentSelectionLabel={currentSelectionLabel}
             designs={designs}
             shirts={shirts}
@@ -2654,6 +2689,24 @@ export default function App() {
                   >
                     <FileText size={compact ? 15 : 17} strokeWidth={2.25} />
                     <span>発注書</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    title={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+                    aria-label={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+                    style={{
+                      ...buttonStyle(false, compact),
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      opacity: hasBaseOrderUrl ? 1 : 0.5,
+                      cursor: hasBaseOrderUrl ? "pointer" : "not-allowed",
+                    }}
+                    onClick={openBaseOrderPage}
+                    disabled={!hasBaseOrderUrl}
+                  >
+                    <span>BASEで注文する</span>
                   </button>
                 </div>
 

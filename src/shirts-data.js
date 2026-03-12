@@ -573,15 +573,6 @@ export const shirts = [
     }
   },
   {
-    "code": "233",
-    "name": "233",
-    "variants": {
-      "WM": {
-        "front": "/shirts/00085-CVT-233_WM.jpg"
-      }
-    }
-  },
-  {
     "code": "236",
     "name": "コヨーテ",
     "variants": {
