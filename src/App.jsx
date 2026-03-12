@@ -54,6 +54,7 @@ const MAX_ZOOM = 3;
 const HANDLE_SIZE = 14;
 const MIN_WIDTH_CM = 5;
 const MAX_WIDTH_CM = 45;
+const HIGH_RES_EXPORT_SIZE = 3000;
 
 function forceSingleColorSvg(svgText, color) {
   if (!svgText) return "";
@@ -2106,6 +2107,85 @@ export default function App() {
     return buildFavoritePreviewDataUrl(work);
   };
 
+  const exportHighResPng = async () => {
+    if (!shirtSrc || !svgDataUrl || !currentPlacement) {
+      setStatus("PNG保存に必要な表示がまだできていません");
+      return;
+    }
+
+    try {
+      const [shirtImg, svgImg] = await Promise.all([
+        loadImageForPreview(shirtSrc),
+        loadImageForPreview(svgDataUrl),
+      ]);
+
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = HIGH_RES_EXPORT_SIZE;
+      exportCanvas.height = HIGH_RES_EXPORT_SIZE;
+      const ctx = exportCanvas.getContext("2d");
+      if (!ctx) {
+        setStatus("PNG保存用のcanvas作成に失敗しました");
+        return;
+      }
+
+      ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+      ctx.fillStyle = "#f5f5f4";
+      ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      const cx = exportCanvas.width / 2;
+      const cy = exportCanvas.height / 2;
+
+      const panScaleX = exportCanvas.width / Math.max(1, canvasSize.width);
+      const panScaleY = exportCanvas.height / Math.max(1, canvasSize.height);
+
+      ctx.save();
+      ctx.translate(cx + pan.x * panScaleX, cy + pan.y * panScaleY);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-cx, -cy);
+
+      const shirtAspect = shirtImg.width / shirtImg.height;
+      const maxW = exportCanvas.width * 0.92;
+      const maxH = exportCanvas.height * 0.92;
+      let drawW = maxW;
+      let drawH = drawW / shirtAspect;
+
+      if (drawH > maxH) {
+        drawH = maxH;
+        drawW = drawH * shirtAspect;
+      }
+
+      const shirtScale = getShirtScale(fit);
+      drawW *= shirtScale;
+      drawH *= shirtScale;
+
+      const shirtX = (exportCanvas.width - drawW) / 2;
+      const shirtY = (exportCanvas.height - drawH) / 2;
+
+      ctx.drawImage(shirtImg, shirtX, shirtY, drawW, drawH);
+
+      const currentBodyLengthCm = getBodyLengthCm(fit);
+      const pxPerCm = drawH / currentBodyLengthCm;
+      const designW = currentPlacement.widthCm * pxPerCm;
+      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+      const designH = designW / svgAspect;
+      const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
+      const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
+
+      ctx.save();
+      ctx.translate(designCenterX, designCenterY);
+      ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
+      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+      ctx.restore();
+
+      ctx.restore();
+
+      downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
+      setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
+    } catch {
+      setStatus("高解像度PNGの書き出しに失敗しました");
+    }
+  };
+
   const saveCurrentFavorite = async () => {
     if (!designId || !shirtSrc || !svgDataUrl || !currentPlacement) {
       setStatus("お気に入り保存に必要な表示がまだできていません");
@@ -2623,14 +2703,10 @@ export default function App() {
                       <Star size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
                     <IconButton
-                      title="PNG保存"
-                      ariaLabel="PNG保存"
+                      title="高解像度PNG保存（3000px）"
+                      ariaLabel="高解像度PNG保存（3000px）"
                       compact={compact}
-                      onClick={() => {
-                        const canvas = canvasRef.current;
-                        if (!canvas) return;
-                        downloadCanvas(canvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}.png`);
-                      }}
+                      onClick={exportHighResPng}
                     >
                       <Download size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
