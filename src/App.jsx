@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Dices, Star, Download, Repeat2, House, Minus, Plus, FileText, Printer, Save, Trash2, ClipboardPlus, Lock } from "lucide-react";
 import { shirts } from "./shirts-data";
 import { designs, getInitialPlacement, getSavedBasePlacements } from "./designs-data";
@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.1.0-touch-final";
+const APP_VERSION = "V04.2.3-touch-stable-render-fix";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -1100,7 +1100,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
   );
 }
 
-function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, columns = 3, compact = false, isMobile = false }) {
+function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact = false, isMobile = false }) {
   const thumbSide = "back";
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -1135,8 +1135,7 @@ function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, co
                 onBlur={() => setHoveredId((prev) => (prev === design.id ? null : prev))}
                 onClick={() => {
                   if (design.id === designId) return;
-                  setIsSwitchingDesign(true);
-                  setDesignId(design.id);
+                  onSelectDesign(design.id);
                 }}
                 style={{
                   position: "relative",
@@ -1241,8 +1240,7 @@ function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, co
             onBlur={() => setHoveredId((prev) => (prev === design.id ? null : prev))}
             onClick={() => {
               if (design.id === designId) return;
-              setIsSwitchingDesign(true);
-              setDesignId(design.id);
+              onSelectDesign(design.id);
             }}
             style={{
               position: "relative",
@@ -1388,6 +1386,8 @@ export default function App() {
   const pinchRef = useRef({ active: false, startDistance: 0, startZoom: 1 });
   const shirtImgRef = useRef(null);
   const svgImgRef = useRef(null);
+  const activeShirtSrcRef = useRef("");
+  const activeSvgSrcRef = useRef("");
   const shirtImageCacheRef = useRef(new Map());
   const svgImageCacheRef = useRef(new Map());
 
@@ -1500,8 +1500,12 @@ export default function App() {
   const hasBaseOrderUrl = Boolean(currentBaseOrderUrl);
   const baseVariant = useMemo(() => getBaseVariantForShirt(selectedShirt), [selectedShirt]);
 
-  const shirtSrc = side === "front" ? baseVariant?.front : baseVariant?.back;
-  const activeSvgRaw = svgCache[designId]?.[side] || "";
+  const shirtSrc = side === "front"
+    ? (baseVariant?.front || baseVariant?.back || "")
+    : (baseVariant?.back || baseVariant?.front || "");
+  const activeSvgRaw = side === "front"
+    ? (svgCache[designId]?.front || svgCache[designId]?.back || "")
+    : (svgCache[designId]?.back || svgCache[designId]?.front || "");
   const currentPlacement = placement?.[side];
 
   const svgDataUrl = useMemo(() => {
@@ -1544,6 +1548,17 @@ export default function App() {
   const ensureDesignAdjustAuth = () => {
     if (isDesignAdjustAuthed) return true;
     return promptDesignAdjustPassword();
+  };
+
+  const toggleDesignAdjustLock = () => {
+    if (isDesignAdjustAuthed) {
+      setIsDesignAdjustAuthed(false);
+      setIsEditMode(false);
+      setIsDesignSelected(false);
+      setStatus("デザイン調整を再ロックしました");
+      return;
+    }
+    promptDesignAdjustPassword();
   };
 
   const addCurrentSelectionToOrder = () => {
@@ -1838,7 +1853,7 @@ export default function App() {
     requestAnimationFrame(sync);
   }, [appView, isMobile, isTablet]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!designId) return;
 
     if (!hasSkippedInitialPlacementReloadRef.current) {
@@ -1884,6 +1899,7 @@ export default function App() {
   useEffect(() => {
     if (!baseVariant) {
       shirtImgRef.current = null;
+      activeShirtSrcRef.current = "";
       return;
     }
 
@@ -1897,6 +1913,8 @@ export default function App() {
       if (cached?.complete) {
         if (activate) {
           shirtImgRef.current = cached;
+          activeShirtSrcRef.current = src;
+          setImageEpoch((prev) => prev + 1);
         }
         return cached;
       }
@@ -1912,12 +1930,14 @@ export default function App() {
         if (cancelled) return;
         if (activate && shirtSrc === src) {
           shirtImgRef.current = img;
+          activeShirtSrcRef.current = src;
           setStatus(`Tシャツ画像読み込み完了: ${selectedShirt?.code || shirtCode} / ${side}`);
         }
         setImageEpoch((prev) => prev + 1);
       };
       img.onerror = () => {
         if (!cancelled && activate && shirtSrc === src) {
+          activeShirtSrcRef.current = "";
           setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
         }
       };
@@ -1948,6 +1968,8 @@ export default function App() {
       if (cached?.complete) {
         if (activate) {
           svgImgRef.current = cached;
+          activeSvgSrcRef.current = src;
+          setImageEpoch((prev) => prev + 1);
         }
         return cached;
       }
@@ -1963,12 +1985,14 @@ export default function App() {
         if (cancelled) return;
         if (activate && svgDataUrl === src) {
           svgImgRef.current = img;
+          activeSvgSrcRef.current = src;
           setStatus("SVG画像読み込み完了");
         }
         setImageEpoch((prev) => prev + 1);
       };
       img.onerror = () => {
         if (!cancelled && activate && svgDataUrl === src) {
+          activeSvgSrcRef.current = "";
           setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
         }
       };
@@ -1982,6 +2006,7 @@ export default function App() {
 
     if (!activeSrc) {
       svgImgRef.current = null;
+      activeSvgSrcRef.current = "";
       return () => {
         cancelled = true;
       };
@@ -2011,6 +2036,8 @@ export default function App() {
     const svgImg = svgImgRef.current;
 
     if (!shirtImg || !svgImg || !shirtImg.complete || !svgImg.complete || !shirtImg.naturalWidth || !svgImg.naturalWidth) return;
+    if (activeShirtSrcRef.current !== shirtSrc) return;
+    if (activeSvgSrcRef.current !== svgDataUrl) return;
 
     const render = () => {
 
@@ -2126,6 +2153,18 @@ export default function App() {
       ...prev,
       [side]: { ...prev[side], ...patch },
     }));
+  };
+
+
+  const applySelectionState = ({ nextDesignId = designId, nextFit = fit, nextShirtCode = shirtCode, statusMessage = "" }) => {
+    const nextPlacement = getPlacementStateForView(nextDesignId, nextFit);
+    setPlacement(nextPlacement);
+    setIsDesignSelected(false);
+    setIsSwitchingDesign(false);
+    setDesignId(nextDesignId);
+    setFit(nextFit);
+    setShirtCode(nextShirtCode);
+    if (statusMessage) setStatus(statusMessage);
   };
 
   const refreshPlacementFromDesignsData = (message) => {
@@ -2474,6 +2513,11 @@ export default function App() {
 
   const applyFavorite = (favorite) => {
     if (!favorite) return;
+
+    const nextPlacement = getPlacementStateForView(favorite.designId, favorite.fit);
+    setIsSwitchingDesign(true);
+    setPlacement(nextPlacement);
+    setIsDesignSelected(false);
     setDesignId(favorite.designId);
     setShirtCode(favorite.shirtCode);
     setInkColor(favorite.inkColor);
@@ -3465,8 +3509,14 @@ export default function App() {
                   <DesignPicker
                     designs={designs}
                     designId={designId}
-                    setDesignId={setDesignId}
-                    setIsSwitchingDesign={setIsSwitchingDesign}
+                    onSelectDesign={(nextDesignId) => {
+                      if (nextDesignId === designId) return;
+                      const nextPlacement = getPlacementStateForView(nextDesignId, fit);
+                      setIsSwitchingDesign(true);
+                      setPlacement(nextPlacement);
+                      setIsDesignSelected(false);
+                      setDesignId(nextDesignId);
+                    }}
                     columns={designColumns}
                     compact={compact}
                     isMobile={isMobile}
@@ -3483,22 +3533,28 @@ export default function App() {
                   isMobile={true}
                   fontSize={isMobile ? 18 : 20}
                   rightElement={
-                    <span
+                    <button
+                      type="button"
+                      onClick={toggleDesignAdjustLock}
+                      title={isDesignAdjustAuthed ? "押すと再ロック" : "押して認証"}
+                      aria-label={isDesignAdjustAuthed ? "デザイン調整を再ロック" : "デザイン調整を認証"}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 5,
                         fontSize: 11,
+                        fontWeight: 700,
                         color: isDesignAdjustAuthed ? "#16a34a" : "#78716c",
                         border: "1px solid #e7e5e4",
                         borderRadius: 999,
                         padding: "4px 8px",
                         background: "#fafaf9",
+                        cursor: "pointer",
                       }}
                     >
                       <Lock size={12} />
                       {isDesignAdjustAuthed ? "認証済み" : "ロック中"}
-                    </span>
+                    </button>
                   }
                 />
 
