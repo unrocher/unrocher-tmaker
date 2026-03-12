@@ -1,0 +1,425 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+const shirts = [
+  {
+    id: "001",
+    name: "白 / ホワイト",
+    swatch: "#ffffff",
+    front: "/shirts/00085-CVT-001_M.jpg",
+    back: "/shirts/00085-CVT-001_M-URA.jpg",
+  },
+  {
+    id: "005",
+    name: "黒 / ブラック",
+    swatch: "#111111",
+    front: "/shirts/00085-CVT-005_M.jpg",
+    back: "/shirts/00085-CVT-005_M-URA.jpg",
+  },
+];
+
+const designs = {
+  front: "/designs/tsdisign2021_01-01.svg",
+  back: "/designs/tsdisign2021_01-02.svg",
+};
+
+const defaultPalette = {
+  c1: "#c7d2bc",
+  c2: "#bd1737",
+  c3: "#b7b7b9",
+  c4: "#835632",
+  c5: "#41b4bb",
+  c6: "#201010",
+  c7: "#ffffff",
+  c8: "#85c17a",
+  c9: "#eac8bd",
+};
+
+const paletteNames = {
+  c1: "1 浅緑 / ライトグリーン",
+  c2: "2 朱 / バーミリオン",
+  c3: "3 深川鼠色 / ライトグレー",
+  c4: "4 茶 / パイロンブラウン",
+  c5: "5 蒼緑 / アンロシェブルー",
+  c6: "6 黒 / ブラック",
+  c7: "7 白 / ホワイト",
+  c8: "8 若草 / マスキンググリーン",
+  c9: "9 薄橙 / アンロシェピンク",
+};
+
+const initialPlacement = {
+  x: 50,
+  y: 31,
+  width: 34,
+  rotation: 0,
+  opacity: 100,
+  flipX: false,
+};
+
+function recolorSvg(svgText, palette) {
+  let out = svgText;
+
+  Object.entries(palette).forEach(([key, color]) => {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const classRegex = new RegExp(`(<[^>]*class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*)(>)`, "g");
+    out = out.replace(classRegex, `$1 style="fill:${color};"$2`);
+
+    const dataRegex = new RegExp(`(<[^>]*data-color=["']${escaped}["'][^>]*)(>)`, "g");
+    out = out.replace(dataRegex, `$1 style="fill:${color};"$2`);
+  });
+
+  return out;
+}
+
+async function fetchText(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`読み込み失敗: ${url}`);
+  return res.text();
+}
+
+function downloadCanvas(canvas, fileName) {
+  const link = document.createElement("a");
+  link.download = fileName;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function panelStyle() {
+  return {
+    background: "#ffffff",
+    borderRadius: 20,
+    padding: 16,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+  };
+}
+
+function labelStyle() {
+  return {
+    display: "block",
+    fontSize: 14,
+    fontWeight: 700,
+    marginBottom: 8,
+  };
+}
+
+function buttonStyle(active = false) {
+  return {
+    padding: "10px 14px",
+    borderRadius: 12,
+    border: active ? "2px solid #111" : "1px solid #d6d3d1",
+    background: active ? "#f5f5f4" : "#fff",
+    cursor: "pointer",
+    fontWeight: 700,
+  };
+}
+
+function inputStyle() {
+  return {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid #d6d3d1",
+    boxSizing: "border-box",
+  };
+}
+
+export default function App() {
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, startPxX: 0, startPxY: 0 });
+
+  const [side, setSide] = useState("front");
+  const [shirtId, setShirtId] = useState("001");
+  const [palette, setPalette] = useState(defaultPalette);
+  const [placement, setPlacement] = useState(initialPlacement);
+  const [frontSvgRaw, setFrontSvgRaw] = useState("");
+  const [backSvgRaw, setBackSvgRaw] = useState("");
+  const [canvasSize, setCanvasSize] = useState({ width: 900, height: 900 });
+  const [status, setStatus] = useState("画像とSVGを読み込み中...");
+
+  const selectedShirt = useMemo(() => shirts.find((s) => s.id === shirtId) ?? shirts[0], [shirtId]);
+  const shirtSrc = side === "front" ? selectedShirt.front : selectedShirt.back;
+  const activeSvgRaw = side === "front" ? frontSvgRaw : backSvgRaw;
+
+  const svgDataUrl = useMemo(() => {
+    if (!activeSvgRaw) return "";
+    const recolored = recolorSvg(activeSvgRaw, palette);
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(recolored)}`;
+  }, [activeSvgRaw, palette]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [front, back] = await Promise.all([fetchText(designs.front), fetchText(designs.back)]);
+        if (!cancelled) {
+          setFrontSvgRaw(front);
+          setBackSvgRaw(back);
+          setStatus("SVG読み込み完了");
+        }
+      } catch (e) {
+        if (!cancelled) setStatus("SVGの読み込みに失敗。public/designs を確認してください。");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = wrapRef.current?.clientWidth ?? 900;
+      const size = Math.max(320, Math.min(980, Math.floor(w)));
+      setCanvasSize({ width: size, height: size });
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!shirtSrc || !svgDataUrl || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const shirtImg = new Image();
+    const svgImg = new Image();
+    shirtImg.crossOrigin = "anonymous";
+    svgImg.crossOrigin = "anonymous";
+
+    let shirtLoaded = false;
+    let svgLoaded = false;
+
+    const render = () => {
+      if (!shirtLoaded || !svgLoaded) return;
+
+      canvas.width = canvasSize.width;
+      canvas.height = canvasSize.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#f5f5f4";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const shirtAspect = shirtImg.width / shirtImg.height;
+      const maxW = canvas.width * 0.92;
+      const maxH = canvas.height * 0.92;
+      let drawW = maxW;
+      let drawH = drawW / shirtAspect;
+      if (drawH > maxH) {
+        drawH = maxH;
+        drawW = drawH * shirtAspect;
+      }
+      const shirtX = (canvas.width - drawW) / 2;
+      const shirtY = (canvas.height - drawH) / 2;
+      ctx.drawImage(shirtImg, shirtX, shirtY, drawW, drawH);
+
+      const designW = (placement.width / 100) * drawW;
+      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+      const designH = designW / svgAspect;
+      const designX = shirtX + (placement.x / 100) * drawW - designW / 2;
+      const designY = shirtY + (placement.y / 100) * drawH - designH / 2;
+
+      ctx.save();
+      ctx.globalAlpha = placement.opacity / 100;
+      ctx.translate(designX + designW / 2, designY + designH / 2);
+      ctx.rotate((placement.rotation * Math.PI) / 180);
+      ctx.scale(placement.flipX ? -1 : 1, 1);
+      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
+      ctx.setLineDash([8, 6]);
+      ctx.lineWidth = 1.5;
+      const guideX = shirtX + drawW * 0.24;
+      const guideY = shirtY + drawH * (side === "front" ? 0.17 : 0.13);
+      const guideW = drawW * 0.52;
+      const guideH = drawH * 0.58;
+      ctx.strokeRect(guideX, guideY, guideW, guideH);
+      ctx.restore();
+
+      setStatus("表示OK");
+    };
+
+    shirtImg.onload = () => {
+      shirtLoaded = true;
+      render();
+    };
+    svgImg.onload = () => {
+      svgLoaded = true;
+      render();
+    };
+    shirtImg.onerror = () => setStatus(`Tシャツ画像の読み込みに失敗: ${shirtSrc}`);
+    svgImg.onerror = () => setStatus("SVG画像の表示に失敗。class c1〜c9 やSVG内容を確認してください。");
+
+    shirtImg.src = shirtSrc;
+    svgImg.src = svgDataUrl;
+  }, [shirtSrc, svgDataUrl, placement, canvasSize, side]);
+
+  const resetPlacement = () => setPlacement(initialPlacement);
+
+  const handlePaletteChange = (key, value) => {
+    setPalette((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const nudge = (dx, dy) => {
+    setPlacement((prev) => ({
+      ...prev,
+      x: Math.max(0, Math.min(100, prev.x + dx)),
+      y: Math.max(0, Math.min(100, prev.y + dy)),
+    }));
+  };
+
+  const onPointerDown = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const pxX = (placement.x / 100) * rect.width;
+    const pxY = (placement.y / 100) * rect.height;
+    dragRef.current = {
+      active: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPxX: pxX,
+      startPxY: pxY,
+    };
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragRef.current.active) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    const nextPxX = dragRef.current.startPxX + dx;
+    const nextPxY = dragRef.current.startPxY + dy;
+    setPlacement((prev) => ({
+      ...prev,
+      x: Math.max(0, Math.min(100, (nextPxX / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, (nextPxY / rect.height) * 100)),
+    }));
+  };
+
+  const onPointerUp = () => {
+    dragRef.current.active = false;
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f5f5f4", padding: 16, boxSizing: "border-box", fontFamily: "sans-serif" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gap: 24, gridTemplateColumns: "minmax(0, 1fr) 380px" }}>
+        <div style={panelStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 32, fontWeight: 800, color: "#1c1917" }}>アンロシェ Tシャツ配色シミュレーター</div>
+              <div style={{ fontSize: 14, color: "#78716c", marginTop: 6 }}>Tシャツ切替・表裏切替・SVG 9色変更・PNG保存</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                style={buttonStyle(false)}
+                onClick={() => {
+                  const canvas = canvasRef.current;
+                  if (!canvas) return;
+                  downloadCanvas(canvas, `anrocher-${shirtId}-${side}.png`);
+                }}
+              >
+                PNG保存
+              </button>
+              <button style={buttonStyle(false)} onClick={resetPlacement}>
+                位置リセット
+              </button>
+            </div>
+          </div>
+
+          <div ref={wrapRef} style={{ background: "#fff", borderRadius: 20, padding: 12, boxShadow: "inset 0 2px 8px rgba(0,0,0,0.05)" }}>
+            <canvas
+              ref={canvasRef}
+              style={{ width: "100%", display: "block", borderRadius: 16, background: "#fafaf9", cursor: "move", touchAction: "none" }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={onPointerUp}
+            />
+          </div>
+          <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>状態: {status}</div>
+        </div>
+
+        <div style={{ display: "grid", gap: 24 }}>
+          <div style={panelStyle()}>
+            <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 14 }}>Tシャツ設定</div>
+
+            <label style={labelStyle()}>カラー</label>
+            <select value={shirtId} onChange={(e) => setShirtId(e.target.value)} style={{ ...inputStyle(), marginBottom: 12 }}>
+              {shirts.map((shirt) => (
+                <option key={shirt.id} value={shirt.id}>
+                  {shirt.name}
+                </option>
+              ))}
+            </select>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              {shirts.map((shirt) => (
+                <button
+                  key={shirt.id}
+                  title={shirt.name}
+                  onClick={() => setShirtId(shirt.id)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 999,
+                    background: shirt.swatch,
+                    border: shirtId === shirt.id ? "3px solid #111" : "1px solid #a8a29e",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                  }}
+                />
+              ))}
+            </div>
+
+            <label style={labelStyle()}>表 / 裏</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={buttonStyle(side === "front")} onClick={() => setSide("front")}>表</button>
+              <button style={buttonStyle(side === "back")} onClick={() => setSide("back")}>裏</button>
+            </div>
+          </div>
+
+          <div style={panelStyle()}>
+            <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 14 }}>デザイン調整</div>
+
+            <label style={labelStyle()}>サイズ {placement.width}%</label>
+            <input type="range" min="5" max="90" step="1" value={placement.width} onChange={(e) => setPlacement((p) => ({ ...p, width: Number(e.target.value) }))} style={{ width: "100%", marginBottom: 14 }} />
+
+            <label style={labelStyle()}>回転 {placement.rotation}°</label>
+            <input type="range" min="-180" max="180" step="1" value={placement.rotation} onChange={(e) => setPlacement((p) => ({ ...p, rotation: Number(e.target.value) }))} style={{ width: "100%", marginBottom: 14 }} />
+
+            <label style={labelStyle()}>透明度 {placement.opacity}%</label>
+            <input type="range" min="10" max="100" step="1" value={placement.opacity} onChange={(e) => setPlacement((p) => ({ ...p, opacity: Number(e.target.value) }))} style={{ width: "100%", marginBottom: 14 }} />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <button style={buttonStyle(false)} onClick={() => nudge(-1, 0)}>← 左へ</button>
+              <button style={buttonStyle(false)} onClick={() => nudge(1, 0)}>右へ →</button>
+              <button style={buttonStyle(false)} onClick={() => nudge(0, -1)}>↑ 上へ</button>
+              <button style={buttonStyle(false)} onClick={() => nudge(0, 1)}>↓ 下へ</button>
+            </div>
+
+            <button style={{ ...buttonStyle(false), width: "100%" }} onClick={() => setPlacement((p) => ({ ...p, flipX: !p.flipX }))}>
+              左右反転 {placement.flipX ? "ON" : "OFF"}
+            </button>
+          </div>
+
+          <div style={panelStyle()}>
+            <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 14 }}>デザインカラー 9色</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {Object.keys(palette).map((key) => (
+                <div key={key} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontSize: 14 }}>{paletteNames[key]}</div>
+                  <input type="color" value={palette[key]} onChange={(e) => handlePaletteChange(key, e.target.value)} style={{ width: 46, height: 38, border: "1px solid #d6d3d1", borderRadius: 8, padding: 2 }} />
+                  <input value={palette[key]} onChange={(e) => handlePaletteChange(key, e.target.value)} style={{ ...inputStyle(), width: 110 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
