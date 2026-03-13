@@ -1437,24 +1437,20 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
 
   const faqItems = [
     {
-      q: "デザイン位置は変えられますか？",
-      a: "一部サイズだけ位置調整に対応しています。編集用のサイズを基準に、ほかのサイズへ自然につながるよう反映されます。",
-    },
-    {
       q: "スマホでも使えますか？",
-      a: "使えます。スマホではデザイン調整内の ON / OFF を切り替えて、1本指の編集と通常操作を切り替えられます。",
+      a: "使えます。ピンチで拡大縮小しながら、画面上で仕上がりを確認できます。",
     },
     {
       q: "保存した内容はどこに残りますか？",
       a: "お気に入りや発注書の下書きは、この端末のブラウザ保存を使っています。同じ端末・同じブラウザで続きがしやすい仕組みです。",
     },
     {
-      q: "BASE注文はどう使えばいいですか？",
-      a: "BASEページが設定されているデザインは、そのまま注文ページへ進めます。未設定デザインではボタンが無効になります。",
+      q: "画像保存がうまくいかないときは？",
+      a: "もう一度ボタンを押し直すか、少し待ってからお試しください。端末やブラウザの状態によって保存開始まで少し時間がかかることがあります。",
     },
     {
-      q: "編集メニューが開かないのはなぜ？",
-      a: "デザイン調整は誤操作防止のため簡易ロック付きです。必要なときだけ開いて使う想定です。",
+      q: "BASE注文はどう使えばいいですか？",
+      a: "BASEページが設定されているデザインは、そのまま注文ページへ進めます。未設定デザインではボタンが無効になります。",
     },
   ];
 
@@ -1606,36 +1602,18 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-              gap: 14,
-            }}
-          >
-            <div style={cardStyle}>
-              <div style={sectionTitleStyle}>デザイン調整について</div>
-              <div style={sectionTextStyle}>
-                ・一部サイズだけ位置調整に対応しています。<br />
-                ・編集は誤操作防止のため簡易ロック付きです。<br />
-                ・基準サイズをもとに、ほかのサイズへ反映されます。<br />
-                ・スマホでは 1本指編集 ON / OFF を切り替えて使えます。
-              </div>
-            </div>
-
-            <div style={cardStyle}>
-              <div style={sectionTitleStyle}>保存・発注について</div>
-              <div style={sectionTextStyle}>
-                ・お気に入り保存ができます。<br />
-                ・発注書は保存 / 読み込み / 削除ができます。<br />
-                ・高解像度PNG保存にも対応しています。<br />
-                ・BASEページがあるデザインは、そのまま注文導線へ進めます。
-              </div>
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>保存・発注について</div>
+            <div style={sectionTextStyle}>
+              ・お気に入り保存ができます。<br />
+              ・発注書は保存 / 読み込み / 削除ができます。<br />
+              ・高解像度PNG保存にも対応しています。<br />
+              ・BASEページがあるデザインは、そのまま注文導線へ進めます。
             </div>
           </div>
 
           <div style={cardStyle}>
-            <div style={sectionTitleStyle}>困ったとき</div>
+            <div style={sectionTitleStyle}>よくある質問</div>
             <div style={{ display: "grid", gap: 10 }}>
               {faqItems.map((item) => (
                 <div
@@ -1668,7 +1646,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
           }}
         >
           <div style={{ fontSize: 13, color: "#78716c", lineHeight: 1.6 }}>
-            まずは「かんたん手順」だけ見れば十分です。慣れてきたらデザイン調整もどうぞ。
+            まずは「かんたん手順」だけ見れば十分です。迷ったときは「困ったとき」を見ればOKです。
           </div>
           <button
             type="button"
