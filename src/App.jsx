@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.2.3-touch-stable-render-fix";
+const APP_VERSION = "V04.2.10-touch-stable-null-guard";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -47,7 +47,7 @@ const DESIGNS_DATA_VERSION = "from-generate-designs-current";
  * 本気のセキュリティにはなりません。
  * 外部公開ページでの誤操作防止用として使ってください。
  */
-const DESIGN_ADJUST_PASSWORD = "CHANGE-ME-UNROCHER";
+const DESIGN_ADJUST_PASSWORD = "unr0ch3r";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
@@ -1317,7 +1317,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
   );
 }
 
-function SizeButton({ size, active, editable, onClick, compact = false }) {
+function SizeButton({ size, active, editable, showEditableMark = true, onClick, compact = false }) {
   return (
     <button
       type="button"
@@ -1334,7 +1334,7 @@ function SizeButton({ size, active, editable, onClick, compact = false }) {
       }}
       onClick={onClick}
     >
-      {editable && (
+      {editable && showEditableMark && (
         <span
           style={{
             position: "absolute",
@@ -1535,7 +1535,8 @@ export default function App() {
       setStatus("デザイン調整の認証をキャンセルしました");
       return false;
     }
-    if (input === DESIGN_ADJUST_PASSWORD) {
+    const normalizedInput = String(input).trim();
+    if (normalizedInput === DESIGN_ADJUST_PASSWORD) {
       setIsDesignAdjustAuthed(true);
       setStatus("デザイン調整を認証しました");
       return true;
@@ -1792,41 +1793,51 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    const loadOne = async (design) => {
       try {
-        const pending = designs.filter((d) => !svgCache[d.id]);
-        if (pending.length === 0) {
-          if (!cancelled) setStatus("SVG読み込み完了");
-          return;
-        }
-
-        const results = await Promise.all(
-          pending.map(async (d) => {
-            const front = d.front ? await fetchText(d.front) : "";
-            const back = d.back ? await fetchText(d.back) : "";
-            return { id: d.id, front, back };
-          })
-        );
-
-        if (!cancelled) {
-          setSvgCache((prev) => {
-            const next = { ...prev };
-            results.forEach((r) => {
-              next[r.id] = { front: r.front, back: r.back };
-            });
-            return next;
-          });
+        const front = design.front ? await fetchText(design.front) : "";
+        const back = design.back ? await fetchText(design.back) : "";
+        if (cancelled) return;
+        setSvgCache((prev) => {
+          if (prev[design.id]?.front === front && prev[design.id]?.back === back) return prev;
+          return {
+            ...prev,
+            [design.id]: { front, back },
+          };
+        });
+        if (design.id === designId) {
           setStatus("SVG読み込み完了");
         }
       } catch {
-        if (!cancelled) setStatus("SVGの読み込みに失敗。public/designs を確認してください。");
+        if (!cancelled && design.id === designId) {
+          setStatus("SVGの読み込みに失敗。public/designs を確認してください。");
+        }
       }
-    })();
+    };
+
+    const pendingIds = new Set(designs.filter((d) => !svgCache[d.id]).map((d) => d.id));
+    if (pendingIds.size === 0) {
+      if (!cancelled) setStatus("SVG読み込み完了");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const activeDesign = designs.find((d) => d.id === designId);
+    if (activeDesign && pendingIds.has(activeDesign.id)) {
+      loadOne(activeDesign);
+      pendingIds.delete(activeDesign.id);
+    }
+
+    pendingIds.forEach((id) => {
+      const design = designs.find((d) => d.id === id);
+      if (design) loadOne(design);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [svgCache]);
+  }, [designId, svgCache]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1905,6 +1916,16 @@ export default function App() {
 
     let cancelled = false;
     const cache = shirtImageCacheRef.current;
+    const cleanupFns = [];
+
+    const activateLoadedShirtImage = (img, src) => {
+      if (cancelled) return;
+      if (shirtSrc !== src) return;
+      shirtImgRef.current = img;
+      activeShirtSrcRef.current = src;
+      setStatus(`Tシャツ画像読み込み完了: ${selectedShirt?.code || shirtCode} / ${side}`);
+      setImageEpoch((prev) => prev + 1);
+    };
 
     const primeShirtImage = (src, { activate = false } = {}) => {
       if (!src) return null;
@@ -1912,35 +1933,52 @@ export default function App() {
       const cached = cache.get(src);
       if (cached?.complete) {
         if (activate) {
-          shirtImgRef.current = cached;
-          activeShirtSrcRef.current = src;
-          setImageEpoch((prev) => prev + 1);
+          activateLoadedShirtImage(cached, src);
         }
         return cached;
       }
 
       if (cached) {
+        if (activate) {
+          const handleLoad = () => activateLoadedShirtImage(cached, src);
+          const handleError = () => {
+            if (!cancelled && shirtSrc === src) {
+              activeShirtSrcRef.current = "";
+              setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
+            }
+          };
+          cached.addEventListener("load", handleLoad);
+          cached.addEventListener("error", handleError);
+          cleanupFns.push(() => {
+            cached.removeEventListener("load", handleLoad);
+            cached.removeEventListener("error", handleError);
+          });
+        }
         return cached;
       }
 
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => {
+      const handleLoad = () => {
         cache.set(src, img);
-        if (cancelled) return;
-        if (activate && shirtSrc === src) {
-          shirtImgRef.current = img;
-          activeShirtSrcRef.current = src;
-          setStatus(`Tシャツ画像読み込み完了: ${selectedShirt?.code || shirtCode} / ${side}`);
+        if (activate) {
+          activateLoadedShirtImage(img, src);
+        } else if (!cancelled) {
+          setImageEpoch((prev) => prev + 1);
         }
-        setImageEpoch((prev) => prev + 1);
       };
-      img.onerror = () => {
+      const handleError = () => {
         if (!cancelled && activate && shirtSrc === src) {
           activeShirtSrcRef.current = "";
           setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
         }
       };
+      img.addEventListener("load", handleLoad);
+      img.addEventListener("error", handleError);
+      cleanupFns.push(() => {
+        img.removeEventListener("load", handleLoad);
+        img.removeEventListener("error", handleError);
+      });
       cache.set(src, img);
       img.src = src;
       return img;
@@ -1954,12 +1992,23 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      cleanupFns.forEach((fn) => fn());
     };
   }, [baseVariant, shirtSrc, selectedShirt, shirtCode, side]);
 
   useEffect(() => {
     const cache = svgImageCacheRef.current;
     let cancelled = false;
+    const cleanupFns = [];
+
+    const activateLoadedSvgImage = (img, src) => {
+      if (cancelled) return;
+      if (svgDataUrl !== src) return;
+      svgImgRef.current = img;
+      activeSvgSrcRef.current = src;
+      setStatus("SVG画像読み込み完了");
+      setImageEpoch((prev) => prev + 1);
+    };
 
     const primeSvgImage = (src, { activate = false } = {}) => {
       if (!src) return null;
@@ -1967,35 +2016,52 @@ export default function App() {
       const cached = cache.get(src);
       if (cached?.complete) {
         if (activate) {
-          svgImgRef.current = cached;
-          activeSvgSrcRef.current = src;
-          setImageEpoch((prev) => prev + 1);
+          activateLoadedSvgImage(cached, src);
         }
         return cached;
       }
 
       if (cached) {
+        if (activate) {
+          const handleLoad = () => activateLoadedSvgImage(cached, src);
+          const handleError = () => {
+            if (!cancelled && svgDataUrl === src) {
+              activeSvgSrcRef.current = "";
+              setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
+            }
+          };
+          cached.addEventListener("load", handleLoad);
+          cached.addEventListener("error", handleError);
+          cleanupFns.push(() => {
+            cached.removeEventListener("load", handleLoad);
+            cached.removeEventListener("error", handleError);
+          });
+        }
         return cached;
       }
 
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => {
+      const handleLoad = () => {
         cache.set(src, img);
-        if (cancelled) return;
-        if (activate && svgDataUrl === src) {
-          svgImgRef.current = img;
-          activeSvgSrcRef.current = src;
-          setStatus("SVG画像読み込み完了");
+        if (activate) {
+          activateLoadedSvgImage(img, src);
+        } else if (!cancelled) {
+          setImageEpoch((prev) => prev + 1);
         }
-        setImageEpoch((prev) => prev + 1);
       };
-      img.onerror = () => {
+      const handleError = () => {
         if (!cancelled && activate && svgDataUrl === src) {
           activeSvgSrcRef.current = "";
           setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
         }
       };
+      img.addEventListener("load", handleLoad);
+      img.addEventListener("error", handleError);
+      cleanupFns.push(() => {
+        img.removeEventListener("load", handleLoad);
+        img.removeEventListener("error", handleError);
+      });
       cache.set(src, img);
       img.src = src;
       return img;
@@ -2009,6 +2075,7 @@ export default function App() {
       activeSvgSrcRef.current = "";
       return () => {
         cancelled = true;
+        cleanupFns.forEach((fn) => fn());
       };
     }
 
@@ -2017,6 +2084,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      cleanupFns.forEach((fn) => fn());
     };
   }, [svgDataUrl, svgDataUrlBySide, side]);
 
@@ -2026,7 +2094,7 @@ export default function App() {
       return;
     }
 
-    if (!svgDataUrl || !canvasRef.current || !currentPlacement) return;
+    if (!canvasRef.current || !currentPlacement) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -2035,9 +2103,16 @@ export default function App() {
     const shirtImg = shirtImgRef.current;
     const svgImg = svgImgRef.current;
 
-    if (!shirtImg || !svgImg || !shirtImg.complete || !svgImg.complete || !shirtImg.naturalWidth || !svgImg.naturalWidth) return;
+    if (!shirtImg || !shirtImg.complete || !shirtImg.naturalWidth) return;
     if (activeShirtSrcRef.current !== shirtSrc) return;
-    if (activeSvgSrcRef.current !== svgDataUrl) return;
+
+    const canDrawSvg = Boolean(
+      svgDataUrl &&
+      svgImg &&
+      svgImg.complete &&
+      svgImg.naturalWidth &&
+      activeSvgSrcRef.current === svgDataUrl
+    );
 
     const render = () => {
 
@@ -2084,7 +2159,7 @@ export default function App() {
       const pxPerCm = drawH / currentBodyLengthCm;
 
       const designW = currentPlacement.widthCm * pxPerCm;
-      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+      const svgAspect = canDrawSvg && svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
       const designH = designW / svgAspect;
 
       const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
@@ -2112,11 +2187,13 @@ export default function App() {
         handleY: designY + designH,
       };
 
-      ctx.save();
-      ctx.translate(designCenterX, designCenterY);
-      ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
-      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
-      ctx.restore();
+      if (canDrawSvg) {
+        ctx.save();
+        ctx.translate(designCenterX, designCenterY);
+        ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
+        ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+        ctx.restore();
+      }
 
       if (canEditActive) {
         drawSelectionBox(ctx, renderInfoRef.current);
@@ -2378,7 +2455,7 @@ export default function App() {
     const currentBodyLengthCm = getBodyLengthCm(fit);
     const pxPerCm = drawH / currentBodyLengthCm;
     const designW = currentPlacement.widthCm * pxPerCm;
-    const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+    const svgAspect = svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
     const designH = designW / svgAspect;
     const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
     const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
@@ -2414,7 +2491,7 @@ export default function App() {
       }
 
       ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
-      ctx.fillStyle = "#f5f5f4";
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
       const cx = exportCanvas.width / 2;
@@ -2451,16 +2528,18 @@ export default function App() {
       const currentBodyLengthCm = getBodyLengthCm(fit);
       const pxPerCm = drawH / currentBodyLengthCm;
       const designW = currentPlacement.widthCm * pxPerCm;
-      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+      const svgAspect = canDrawSvg && svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
       const designH = designW / svgAspect;
       const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
       const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
 
-      ctx.save();
-      ctx.translate(designCenterX, designCenterY);
-      ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
-      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
-      ctx.restore();
+      if (canDrawSvg) {
+        ctx.save();
+        ctx.translate(designCenterX, designCenterY);
+        ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
+        ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+        ctx.restore();
+      }
 
       ctx.restore();
 
@@ -3047,7 +3126,9 @@ export default function App() {
                         height: "auto",
                       }}
                     />
-                    <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
+                    {isDesignAdjustAuthed && (
+                      <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
+                    )}
                   </div>
 
                   <div
@@ -3195,9 +3276,11 @@ export default function App() {
                   />
                 </div>
 
-                <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
-                  状態: {isSwitchingDesign ? "デザイン切替中..." : status}
-                </div>
+                {isDesignAdjustAuthed && (
+                  <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
+                    状態: {isSwitchingDesign ? "デザイン切替中..." : status}
+                  </div>
+                )}
 
                 <div
                   style={{
@@ -3209,9 +3292,11 @@ export default function App() {
                   }}
                 >
                   <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>お気に入り</div>
-                  <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
-                    いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
-                  </div>
+                  {isDesignAdjustAuthed && (
+                    <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
+                      いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
+                    </div>
+                  )}
 
                   {favorites.length === 0 ? (
                     <div
@@ -3408,15 +3493,18 @@ export default function App() {
                           size={size}
                           active={fit === size}
                           editable={EDITABLE_SIZES.includes(size)}
+                          showEditableMark={isDesignAdjustAuthed}
                           onClick={() => setFit(size)}
                           compact={compact}
                         />
                       ))}
                     </div>
 
-                    <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
-                      ● が付いているサイズだけ編集できます
-                    </div>
+                    {isDesignAdjustAuthed && (
+                      <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
+                        ● が付いているサイズだけ編集できます
+                      </div>
+                    )}
                   </>
                 )}
               </div>
