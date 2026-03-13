@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.0.4.7-preview-dpr-native-pinch";
+const APP_VERSION = "V04.0.3.9-base-order-button";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -129,48 +129,11 @@ async function fetchText(url) {
   return res.text();
 }
 
-async function downloadCanvas(canvas, fileName) {
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/png");
-  });
-
-  if (!blob) {
-    throw new Error("PNG blob creation failed");
-  }
-
-  const file = new File([blob], fileName, { type: "image/png" });
-  const nav = typeof navigator !== "undefined" ? navigator : null;
-
-  if (nav?.canShare && nav?.share) {
-    try {
-      if (nav.canShare({ files: [file] })) {
-        await nav.share({
-          files: [file],
-          title: fileName,
-        });
-        return "shared";
-      }
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return "cancelled";
-      }
-    }
-  }
-
-  const blobUrl = URL.createObjectURL(blob);
+function downloadCanvas(canvas, fileName) {
   const link = document.createElement("a");
-  link.href = blobUrl;
   link.download = fileName;
-  link.rel = "noopener noreferrer";
-  document.body.appendChild(link);
+  link.href = canvas.toDataURL("image/png");
   link.click();
-  document.body.removeChild(link);
-
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl);
-  }, 1500);
-
-  return "downloaded";
 }
 
 function panelStyle(compact = false) {
@@ -1462,11 +1425,6 @@ export default function App() {
   const isTablet = viewportWidth < 980;
   const compact = viewportWidth < 560;
   const isTouchCapable = typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
-  const previewDpr = useMemo(() => {
-    if (typeof window === "undefined") return 1;
-    const raw = window.devicePixelRatio || 1;
-    return Math.max(1, Math.min(raw, isMobile ? 2.5 : 2));
-  }, [isMobile]);
   const layoutColumns = isTablet ? "1fr" : "minmax(0, 1fr) minmax(340px, 420px)";
   const sizeColumns = isMobile ? 4 : 5;
   const designColumns = isMobile ? 2 : isTablet ? 2 : 3;
@@ -1626,75 +1584,6 @@ export default function App() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isTouchCapable) return;
-
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-
-    const handleNativeTouchStart = (e) => {
-      if (e.touches.length !== 2) return;
-      const [t1, t2] = e.touches;
-      stopSingleTouchInteraction();
-      setIsDesignSelected(false);
-      touchRef.current.active = true;
-      touchRef.current.mode = "pinch";
-      touchRef.current.startDistance = getTouchDistance(t1, t2);
-      touchRef.current.startZoom = zoom;
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const handleNativeTouchMove = (e) => {
-      if (e.touches.length !== 2) return;
-      const [t1, t2] = e.touches;
-      const currentDistance = getTouchDistance(t1, t2);
-
-      if (!touchRef.current.active || touchRef.current.mode !== "pinch" || touchRef.current.startDistance <= 0) {
-        stopSingleTouchInteraction();
-        setIsDesignSelected(false);
-        touchRef.current.active = true;
-        touchRef.current.mode = "pinch";
-        touchRef.current.startDistance = currentDistance;
-        touchRef.current.startZoom = zoom;
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      const scale = currentDistance / touchRef.current.startDistance;
-      const nextZoom = clamp(touchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
-      setZoom((prev) => (Math.abs(prev - nextZoom) < 0.0001 ? prev : nextZoom));
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const handleNativeTouchEnd = (e) => {
-      if (touchRef.current.mode !== "pinch") return;
-      if (e.touches.length < 2) {
-        touchRef.current.active = false;
-        touchRef.current.mode = null;
-        touchRef.current.startDistance = 0;
-        touchRef.current.startZoom = zoom;
-        stopSingleTouchInteraction();
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    wrap.addEventListener("touchstart", handleNativeTouchStart, { passive: false, capture: true });
-    wrap.addEventListener("touchmove", handleNativeTouchMove, { passive: false, capture: true });
-    wrap.addEventListener("touchend", handleNativeTouchEnd, { passive: false, capture: true });
-    wrap.addEventListener("touchcancel", handleNativeTouchEnd, { passive: false, capture: true });
-
-    return () => {
-      wrap.removeEventListener("touchstart", handleNativeTouchStart, true);
-      wrap.removeEventListener("touchmove", handleNativeTouchMove, true);
-      wrap.removeEventListener("touchend", handleNativeTouchEnd, true);
-      wrap.removeEventListener("touchcancel", handleNativeTouchEnd, true);
-    };
-  }, [isTouchCapable, zoom]);
 
   useEffect(() => {
     if (!isTouchCapable) return;
@@ -1877,19 +1766,14 @@ export default function App() {
     const render = () => {
       if (!shirtLoaded || !svgLoaded) return;
 
-      const logicalWidth = canvasSize.width;
-      const logicalHeight = canvasSize.height;
-      canvas.width = Math.max(1, Math.floor(logicalWidth * previewDpr));
-      canvas.height = Math.max(1, Math.floor(logicalHeight * previewDpr));
-      ctx.setTransform(previewDpr, 0, 0, previewDpr, 0, 0);
-      ctx.clearRect(0, 0, logicalWidth, logicalHeight);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+      canvas.width = canvasSize.width;
+      canvas.height = canvasSize.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#f5f5f4";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const cx = logicalWidth / 2;
-      const cy = logicalHeight / 2;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
 
       ctx.save();
       ctx.translate(cx + pan.x, cy + pan.y);
@@ -1897,8 +1781,8 @@ export default function App() {
       ctx.translate(-cx, -cy);
 
       const shirtAspect = shirtImg.width / shirtImg.height;
-      const maxW = logicalWidth * 0.92;
-      const maxH = logicalHeight * 0.92;
+      const maxW = canvas.width * 0.92;
+      const maxH = canvas.height * 0.92;
       let drawW = maxW;
       let drawH = drawW / shirtAspect;
 
@@ -1911,8 +1795,8 @@ export default function App() {
       drawW *= shirtScale;
       drawH *= shirtScale;
 
-      const shirtX = (logicalWidth - drawW) / 2;
-      const shirtY = (logicalHeight - drawH) / 2;
+      const shirtX = (canvas.width - drawW) / 2;
+      const shirtY = (canvas.height - drawH) / 2;
 
       ctx.drawImage(shirtImg, shirtX, shirtY, drawW, drawH);
 
@@ -1988,7 +1872,6 @@ export default function App() {
     pan,
     canEditCurrentSize,
     isSwitchingDesign,
-    previewDpr,
   ]);
 
   const updateCurrentPlacement = (patch) => {
@@ -2184,7 +2067,7 @@ export default function App() {
     if (!ctx) return "";
 
     ctx.clearRect(0, 0, work.width, work.height);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#f5f5f4";
     ctx.fillRect(0, 0, work.width, work.height);
 
     const shirtAspect = shirtImg.width / shirtImg.height;
@@ -2246,7 +2129,7 @@ export default function App() {
       }
 
       ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = "#f5f5f4";
       ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
       const cx = exportCanvas.width / 2;
@@ -2296,18 +2179,8 @@ export default function App() {
 
       ctx.restore();
 
-      const exportResult = await downloadCanvas(
-        exportCanvas,
-        `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`
-      );
-
-      if (exportResult === "shared") {
-        setStatus(`高解像度PNGを共有メニューへ渡しました: ${HIGH_RES_EXPORT_SIZE}px`);
-      } else if (exportResult === "cancelled") {
-        setStatus("画像共有をキャンセルしました");
-      } else {
-        setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
-      }
+      downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
+      setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
     } catch {
       setStatus("高解像度PNGの書き出しに失敗しました");
     }
@@ -2391,16 +2264,6 @@ export default function App() {
     panRef.current.pointerId = null;
     touchRef.current.active = false;
     touchRef.current.mode = null;
-    touchRef.current.startDistance = 0;
-    touchRef.current.startZoom = zoom;
-  };
-
-  const stopSingleTouchInteraction = () => {
-    dragRef.current.active = false;
-    dragRef.current.mode = null;
-    dragRef.current.pointerId = null;
-    panRef.current.active = false;
-    panRef.current.pointerId = null;
   };
 
   const onPointerDown = (e) => {
@@ -2532,28 +2395,16 @@ export default function App() {
     if (!isTouchCapable) return;
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const info = renderInfoRef.current;
+    if (!canvas || !currentPlacement || !info) return;
 
-    if (e.touches.length === 2) {
-      const [t1, t2] = e.touches;
-      stopSingleTouchInteraction();
-      setIsDesignSelected(false);
-      touchRef.current.active = true;
-      touchRef.current.mode = "pinch";
-      touchRef.current.startDistance = getTouchDistance(t1, t2);
-      touchRef.current.startZoom = zoom;
+    if (e.touches.length >= 2) {
+      clearInteractionState();
       e.preventDefault();
       return;
     }
 
     if (e.touches.length !== 1) return;
-    if (touchRef.current.mode === "pinch") {
-      e.preventDefault();
-      return;
-    }
-
-    const info = renderInfoRef.current;
-    if (!currentPlacement || !info) return;
 
     const touch = e.touches[0];
     const point = getCanvasPoint(touch.clientX, touch.clientY, canvas);
@@ -2612,37 +2463,14 @@ export default function App() {
     if (!isTouchCapable) return;
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (e.touches.length === 2) {
-      const [t1, t2] = e.touches;
-      const currentDistance = getTouchDistance(t1, t2);
-
-      if (!touchRef.current.active || touchRef.current.mode !== "pinch" || touchRef.current.startDistance <= 0) {
-        stopSingleTouchInteraction();
-        setIsDesignSelected(false);
-        touchRef.current.active = true;
-        touchRef.current.mode = "pinch";
-        touchRef.current.startDistance = currentDistance;
-        touchRef.current.startZoom = zoom;
-        e.preventDefault();
-        return;
-      }
-
-      const scale = currentDistance / touchRef.current.startDistance;
-      const nextZoom = clamp(touchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
-      setZoom(nextZoom);
-      e.preventDefault();
-      return;
-    }
-
-    if (touchRef.current.mode === "pinch") {
-      e.preventDefault();
-      return;
-    }
-
     const info = renderInfoRef.current;
-    if (!info) return;
+    if (!canvas || !info) return;
+
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.touches.length !== 1) return;
 
     const touch = e.touches[0];
@@ -2692,19 +2520,15 @@ export default function App() {
   const onTouchEnd = (e) => {
     if (!isTouchCapable) return;
 
-    if (touchRef.current.mode === "pinch") {
-      if (e.touches.length < 2) {
-        touchRef.current.active = false;
-        touchRef.current.mode = null;
-        touchRef.current.startDistance = 0;
-        touchRef.current.startZoom = zoom;
-        stopSingleTouchInteraction();
-      }
+    if (e.touches.length >= 2) {
+      clearInteractionState();
       return;
     }
 
     if (e.touches.length === 1) {
       const touch = e.touches[0];
+      touchRef.current.active = false;
+      touchRef.current.mode = null;
 
       if (interactionMode === "pan") {
         panRef.current = {
@@ -2716,7 +2540,11 @@ export default function App() {
           startOffsetY: pan.y,
         };
       } else {
-        stopSingleTouchInteraction();
+        panRef.current.active = false;
+        panRef.current.pointerId = null;
+        dragRef.current.active = false;
+        dragRef.current.mode = null;
+        dragRef.current.pointerId = null;
       }
       return;
     }
@@ -2875,8 +2703,8 @@ export default function App() {
                       <Star size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
                     <IconButton
-                      title="高解像度PNG保存 / 共有（3000px）"
-                      ariaLabel="高解像度PNG保存 / 共有（3000px）"
+                      title="高解像度PNG保存（3000px）"
+                      ariaLabel="高解像度PNG保存（3000px）"
                       compact={compact}
                       onClick={exportHighResPng}
                     >
@@ -2982,7 +2810,7 @@ export default function App() {
                       maxWidth: "100%",
                       display: "block",
                       borderRadius: 16,
-                      background: "#ffffff",
+                      background: "#fafaf9",
                       cursor: canvasCursor,
                       touchAction: "none",
                       opacity: isSwitchingDesign ? 0.96 : 1,
@@ -3073,7 +2901,7 @@ export default function App() {
                               style={{
                                 width: "100%",
                                 aspectRatio: "1 / 1",
-                                background: "#ffffff",
+                                background: "#f5f5f4",
                                 overflow: "hidden",
                                 borderBottom: "1px solid #f0ede9",
                               }}
