@@ -1,6 +1,6 @@
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Dices, Star, Download, Repeat2, House, Minus, Plus, FileText, Printer, Save, Trash2, ClipboardPlus, Lock } from "lucide-react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Dices, Star, Download, Repeat2, House, Minus, Plus, FileText, Printer, Save, Trash2, ClipboardPlus, Lock, CircleHelp, X } from "lucide-react";
 import { shirts } from "./shirts-data";
 import { designs, getInitialPlacement, getSavedBasePlacements } from "./designs-data";
 
@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.0.4.7-preview-dpr-native-pinch";
+const APP_VERSION = "V04.2.24-touch-stable-simple-export";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -47,11 +47,12 @@ const DESIGNS_DATA_VERSION = "from-generate-designs-current";
  * 本気のセキュリティにはなりません。
  * 外部公開ページでの誤操作防止用として使ってください。
  */
-const DESIGN_ADJUST_PASSWORD = "CHANGE-ME-UNROCHER";
+const DESIGN_ADJUST_PASSWORD = "unr0ch3r";
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 3;
-const HANDLE_SIZE = 14;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const HANDLE_SIZE = 24;
+const HANDLE_HIT_SIZE = 52;
 const MIN_WIDTH_CM = 5;
 const MAX_WIDTH_CM = 45;
 const HIGH_RES_EXPORT_SIZE = 3000;
@@ -129,47 +130,24 @@ async function fetchText(url) {
   return res.text();
 }
 
+function dataUrlToFile(dataUrl, fileName) {
+  const parts = String(dataUrl).split(",");
+  if (parts.length < 2) throw new Error("data URL の変換に失敗しました");
+  const mimeMatch = parts[0].match(/data:([^;]+);base64/);
+  const mime = mimeMatch?.[1] || "image/png";
+  const binary = atob(parts[1]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], fileName, { type: mime });
+}
+
 async function downloadCanvas(canvas, fileName) {
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/png");
-  });
-
-  if (!blob) {
-    throw new Error("PNG blob creation failed");
-  }
-
-  const file = new File([blob], fileName, { type: "image/png" });
-  const nav = typeof navigator !== "undefined" ? navigator : null;
-
-  if (nav?.canShare && nav?.share) {
-    try {
-      if (nav.canShare({ files: [file] })) {
-        await nav.share({
-          files: [file],
-          title: fileName,
-        });
-        return "shared";
-      }
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return "cancelled";
-      }
-    }
-  }
-
-  const blobUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = blobUrl;
   link.download = fileName;
-  link.rel = "noopener noreferrer";
+  link.href = canvas.toDataURL("image/png");
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl);
-  }, 1500);
-
+  link.remove();
   return "downloaded";
 }
 
@@ -656,7 +634,7 @@ function buildFavoritePreviewDataUrl(canvas, width = 220) {
   thumb.height = targetH;
   const ctx = thumb.getContext("2d");
   if (!ctx) return "";
-  ctx.fillStyle = "#f5f5f4";
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, thumb.width, thumb.height);
   ctx.drawImage(canvas, 0, 0, thumb.width, thumb.height);
   return thumb.toDataURL("image/jpeg", 0.82);
@@ -707,6 +685,10 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function getTouchDistance(t1, t2) {
+  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -728,9 +710,11 @@ function getShirtScale(sizeKey) {
 
 function getCanvasPoint(clientX, clientY, canvas) {
   const rect = canvas.getBoundingClientRect();
+  const logicalWidth = canvas.clientWidth || rect.width || canvas.width;
+  const logicalHeight = canvas.clientHeight || rect.height || canvas.height;
   return {
-    x: ((clientX - rect.left) / rect.width) * canvas.width,
-    y: ((clientY - rect.top) / rect.height) * canvas.height,
+    x: ((clientX - rect.left) / Math.max(rect.width, 1)) * logicalWidth,
+    y: ((clientY - rect.top) / Math.max(rect.height, 1)) * logicalHeight,
   };
 }
 
@@ -738,10 +722,9 @@ function drawSelectionBox(ctx, info) {
   if (!info) return;
 
   const { designX, designY, designW, designH } = info;
-  const hx = designX + designW;
-  const hy = designY + designH;
+  const hx = info.handleX ?? (designX + designW);
+  const hy = info.handleY ?? (designY + designH);
   const zoom = info.zoom || 1;
-  const half = HANDLE_SIZE / 2;
 
   ctx.save();
   ctx.strokeStyle = "#0ea5e9";
@@ -752,26 +735,29 @@ function drawSelectionBox(ctx, info) {
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#0ea5e9";
   ctx.lineWidth = 2 / zoom;
-  ctx.beginPath();
-  ctx.rect(hx - half / zoom, hy - half / zoom, HANDLE_SIZE / zoom, HANDLE_SIZE / zoom);
-  ctx.fill();
-  ctx.stroke();
+  const handleSize = HANDLE_SIZE / Math.max(zoom, 0.0001);
+  ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+  ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
   ctx.restore();
 }
 
 function hitResizeHandle(point, info) {
   if (!info) return false;
-  const zoom = info.zoom || 1;
-  const hx = info.designX + info.designW;
-  const hy = info.designY + info.designH;
-  const half = (HANDLE_SIZE / 2) / zoom;
+  const half = HANDLE_HIT_SIZE / 2;
 
-  return (
-    point.x >= hx - half &&
-    point.x <= hx + half &&
-    point.y >= hy - half &&
-    point.y <= hy + half
-  );
+  const squareHit =
+    point.x >= info.handleX - half &&
+    point.x <= info.handleX + half &&
+    point.y >= info.handleY - half &&
+    point.y <= info.handleY + half;
+
+  const cornerZoneHit =
+    point.x >= info.designX + info.designW * 0.68 &&
+    point.x <= info.designX + info.designW + half &&
+    point.y >= info.designY + info.designH * 0.68 &&
+    point.y <= info.designY + info.designH + half;
+
+  return squareHit || cornerZoneHit;
 }
 
 function hitDesignBody(point, info) {
@@ -1091,7 +1077,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
   );
 }
 
-function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, columns = 3, compact = false, isMobile = false }) {
+function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact = false, isMobile = false }) {
   const thumbSide = "back";
   const [hoveredId, setHoveredId] = useState(null);
 
@@ -1126,8 +1112,7 @@ function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, co
                 onBlur={() => setHoveredId((prev) => (prev === design.id ? null : prev))}
                 onClick={() => {
                   if (design.id === designId) return;
-                  setIsSwitchingDesign(true);
-                  setDesignId(design.id);
+                  onSelectDesign(design.id);
                 }}
                 style={{
                   position: "relative",
@@ -1232,8 +1217,7 @@ function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, co
             onBlur={() => setHoveredId((prev) => (prev === design.id ? null : prev))}
             onClick={() => {
               if (design.id === designId) return;
-              setIsSwitchingDesign(true);
-              setDesignId(design.id);
+              onSelectDesign(design.id);
             }}
             style={{
               position: "relative",
@@ -1310,7 +1294,7 @@ function DesignPicker({ designs, designId, setDesignId, setIsSwitchingDesign, co
   );
 }
 
-function SizeButton({ size, active, editable, onClick, compact = false }) {
+function SizeButton({ size, active, editable, showEditableMark = true, onClick, compact = false }) {
   return (
     <button
       type="button"
@@ -1327,7 +1311,7 @@ function SizeButton({ size, active, editable, onClick, compact = false }) {
       }}
       onClick={onClick}
     >
-      {editable && (
+      {editable && showEditableMark && (
         <span
           style={{
             position: "absolute",
@@ -1371,10 +1355,335 @@ function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize,
   );
 }
 
+function HelpModal({ open, onClose, compact = false, isMobile = false }) {
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const sectionTitleStyle = {
+    fontSize: isMobile ? 17 : 18,
+    fontWeight: 800,
+    color: "#1c1917",
+    marginBottom: 8,
+  };
+
+  const sectionTextStyle = {
+    fontSize: 14,
+    color: "#57534e",
+    lineHeight: 1.75,
+  };
+
+  const cardStyle = {
+    border: "1px solid #e7e5e4",
+    borderRadius: 16,
+    background: "#ffffff",
+    padding: isMobile ? 14 : 16,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.05)",
+  };
+
+  const chipStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    padding: "6px 10px",
+    background: "#eefbfc",
+    color: "#0f766e",
+    fontSize: 12,
+    fontWeight: 800,
+    border: "1px solid #bfe8eb",
+  };
+
+  const steps = [
+    "Tシャツカラーを選ぶ",
+    "サイズを選ぶ",
+    "デザインを選ぶ",
+    "インクカラーを選ぶ",
+    "表・裏を確認する",
+    "保存または発注へ進む",
+  ];
+
+  const faqItems = [
+    {
+      q: "デザイン位置は変えられますか？",
+      a: "一部サイズだけ位置調整に対応しています。編集用のサイズを基準に、ほかのサイズへ自然につながるよう反映されます。",
+    },
+    {
+      q: "スマホでも使えますか？",
+      a: "使えます。スマホではデザイン調整内の ON / OFF を切り替えて、1本指の編集と通常操作を切り替えられます。",
+    },
+    {
+      q: "保存した内容はどこに残りますか？",
+      a: "お気に入りや発注書の下書きは、この端末のブラウザ保存を使っています。同じ端末・同じブラウザで続きがしやすい仕組みです。",
+    },
+    {
+      q: "BASE注文はどう使えばいいですか？",
+      a: "BASEページが設定されているデザインは、そのまま注文ページへ進めます。未設定デザインではボタンが無効になります。",
+    },
+    {
+      q: "編集メニューが開かないのはなぜ？",
+      a: "デザイン調整は誤操作防止のため簡易ロック付きです。必要なときだけ開いて使う想定です。",
+    },
+  ];
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="アンロシェカスタムTメーカーのヘルプ"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "rgba(28,25,23,0.56)",
+        display: "flex",
+        alignItems: isMobile ? "stretch" : "center",
+        justifyContent: "center",
+        padding: isMobile ? 0 : 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(980px, 100%)",
+          maxHeight: isMobile ? "100vh" : "min(88vh, 920px)",
+          background: "#fcfcfc",
+          borderRadius: isMobile ? 0 : 24,
+          overflow: "hidden",
+          boxShadow: "0 18px 50px rgba(0,0,0,0.22)",
+          display: "grid",
+          gridTemplateRows: "auto 1fr auto",
+        }}
+      >
+        <div
+          style={{
+            padding: isMobile ? 14 : 18,
+            borderBottom: "1px solid #e7e5e4",
+            background: "linear-gradient(180deg, #f4feff 0%, #fff7f3 100%)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "flex-start",
+          }}
+        >
+          <div>
+            <div style={chipStyle}>はじめてでも使いやすいガイド</div>
+            <div style={{ fontSize: isMobile ? 22 : 26, fontWeight: 900, color: "#1c1917", marginTop: 10 }}>
+              アンロシェカスタムTメーカー 使い方
+            </div>
+            <div style={{ fontSize: 14, color: "#57534e", marginTop: 8, lineHeight: 1.75 }}>
+              迷ったらここを見ればOK。まずは「使い方の流れ」だけ見れば、だいたい進められます。
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ヘルプを閉じる"
+            style={{
+              ...buttonStyle(false, compact),
+              width: compact ? 40 : 44,
+              height: compact ? 40 : 44,
+              padding: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              background: "#ffffffcc",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <X size={18} strokeWidth={2.3} />
+          </button>
+        </div>
+
+        <div style={{ overflowY: "auto", padding: isMobile ? 14 : 20, display: "grid", gap: 14 }}>
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>このアプリでできること</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                gap: 10,
+              }}
+            >
+              {[
+                "Tシャツカラーとサイズを選べます",
+                "デザインとインクカラーの組み合わせを確認できます",
+                "表面・背面を切り替えて見られます",
+                "お気に入り保存や画像保存ができます",
+                "発注書を作ってあとで読み込みできます",
+                "設定済みデザインは BASE 注文ページへ進めます",
+              ].map((item) => (
+                <div
+                  key={item}
+                  style={{
+                    border: "1px solid #f0ede9",
+                    borderRadius: 14,
+                    padding: "12px 14px",
+                    background: "#fff",
+                    fontSize: 14,
+                    color: "#44403c",
+                    lineHeight: 1.6,
+                    fontWeight: 700,
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>かんたん手順</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {steps.map((step, index) => (
+                <div
+                  key={step}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "44px 1fr",
+                    gap: 12,
+                    alignItems: "start",
+                    border: "1px solid #f0ede9",
+                    borderRadius: 14,
+                    padding: "12px 14px",
+                    background: index === steps.length - 1 ? "#fff7f3" : "#fff",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 999,
+                      background: index % 2 === 0 ? "#41b4bb" : "#eac8bd",
+                      color: "#1c1917",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div style={{ ...sectionTextStyle, fontWeight: 700 }}>{step}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+              gap: 14,
+            }}
+          >
+            <div style={cardStyle}>
+              <div style={sectionTitleStyle}>デザイン調整について</div>
+              <div style={sectionTextStyle}>
+                ・一部サイズだけ位置調整に対応しています。<br />
+                ・編集は誤操作防止のため簡易ロック付きです。<br />
+                ・基準サイズをもとに、ほかのサイズへ反映されます。<br />
+                ・スマホでは 1本指編集 ON / OFF を切り替えて使えます。
+              </div>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={sectionTitleStyle}>保存・発注について</div>
+              <div style={sectionTextStyle}>
+                ・お気に入り保存ができます。<br />
+                ・発注書は保存 / 読み込み / 削除ができます。<br />
+                ・高解像度PNG保存にも対応しています。<br />
+                ・BASEページがあるデザインは、そのまま注文導線へ進めます。
+              </div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>困ったとき</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {faqItems.map((item) => (
+                <div
+                  key={item.q}
+                  style={{
+                    border: "1px solid #f0ede9",
+                    borderRadius: 14,
+                    background: "#fff",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 14, color: "#1c1917", marginBottom: 6 }}>{item.q}</div>
+                  <div style={sectionTextStyle}>{item.a}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: isMobile ? 14 : 16,
+            borderTop: "1px solid #e7e5e4",
+            background: "#fff",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#78716c", lineHeight: 1.6 }}>
+            まずは「かんたん手順」だけ見れば十分です。慣れてきたらデザイン調整もどうぞ。
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              ...buttonStyle(false, compact),
+              minWidth: isMobile ? "100%" : 140,
+              background: "#41b4bb",
+              color: "#ffffff",
+              border: "1px solid #41b4bb",
+            }}
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const renderInfoRef = useRef(null);
+  const zoomRef = useRef(1);
+  const pinchRef = useRef({ active: false, startDistance: 0, startZoom: 1 });
+  const shirtImgRef = useRef(null);
+  const svgImgRef = useRef(null);
+  const activeShirtSrcRef = useRef("");
+  const activeSvgSrcRef = useRef("");
+  const shirtImageCacheRef = useRef(new Map());
+  const svgImageCacheRef = useRef(new Map());
 
   const dragRef = useRef({
     active: false,
@@ -1417,6 +1726,7 @@ export default function App() {
   const [svgCache, setSvgCache] = useState({});
   const [canvasSize, setCanvasSize] = useState({ width: 900, height: 900 });
   const [status, setStatus] = useState("画像とSVGを読み込み中...");
+  const [imageEpoch, setImageEpoch] = useState(0);
   const [isDesignSelected, setIsDesignSelected] = useState(false);
   const [hoverMode, setHoverMode] = useState(null);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
@@ -1428,6 +1738,15 @@ export default function App() {
   const [savedOrders, setSavedOrders] = useState(() => loadOrderDrafts());
   const [interactionMode, setInteractionMode] = useState("pan");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  const notifyStatus = (message, options = {}) => {
+    const { forceAlert = false } = options || {};
+    setStatus(message);
+    if (forceAlert && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+  };
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1440));
   const [isDesignAdjustAuthed, setIsDesignAdjustAuthed] = useState(() => loadDesignAdjustAuth());
 
@@ -1442,6 +1761,10 @@ export default function App() {
     const firstDesignId = designs[0]?.id || "";
     return buildPlacementStateFromDesignsData(firstDesignId, "M");
   });
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   useEffect(() => {
     saveFavoritesToStorage(favorites);
@@ -1480,8 +1803,12 @@ export default function App() {
   const hasBaseOrderUrl = Boolean(currentBaseOrderUrl);
   const baseVariant = useMemo(() => getBaseVariantForShirt(selectedShirt), [selectedShirt]);
 
-  const shirtSrc = side === "front" ? baseVariant?.front : baseVariant?.back;
-  const activeSvgRaw = svgCache[designId]?.[side] || "";
+  const shirtSrc = side === "front"
+    ? (baseVariant?.front || baseVariant?.back || "")
+    : (baseVariant?.back || baseVariant?.front || "");
+  const activeSvgRaw = side === "front"
+    ? (svgCache[designId]?.front || svgCache[designId]?.back || "")
+    : (svgCache[designId]?.back || svgCache[designId]?.front || "");
   const currentPlacement = placement?.[side];
 
   const svgDataUrl = useMemo(() => {
@@ -1489,6 +1816,15 @@ export default function App() {
     const recolored = forceSingleColorSvg(activeSvgRaw, inkColor);
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(recolored)}`;
   }, [activeSvgRaw, inkColor]);
+
+  const svgDataUrlBySide = useMemo(() => {
+    const frontRaw = svgCache[designId]?.front || "";
+    const backRaw = svgCache[designId]?.back || "";
+    return {
+      front: frontRaw ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(forceSingleColorSvg(frontRaw, inkColor))}` : "",
+      back: backRaw ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(forceSingleColorSvg(backRaw, inkColor))}` : "",
+    };
+  }, [svgCache, designId, inkColor]);
 
   const currentSelectionLabel = `${selectedDesign?.name || designId || "デザイン未選択"} / ${shirtCode || "-"} / ${fit || "-"} / ${shirts.find((s) => s.code === shirtCode)?.name || ""}`.trim();
 
@@ -1502,7 +1838,8 @@ export default function App() {
       setStatus("デザイン調整の認証をキャンセルしました");
       return false;
     }
-    if (input === DESIGN_ADJUST_PASSWORD) {
+    const normalizedInput = String(input).trim();
+    if (normalizedInput === DESIGN_ADJUST_PASSWORD) {
       setIsDesignAdjustAuthed(true);
       setStatus("デザイン調整を認証しました");
       return true;
@@ -1515,6 +1852,17 @@ export default function App() {
   const ensureDesignAdjustAuth = () => {
     if (isDesignAdjustAuthed) return true;
     return promptDesignAdjustPassword();
+  };
+
+  const toggleDesignAdjustLock = () => {
+    if (isDesignAdjustAuthed) {
+      setIsDesignAdjustAuthed(false);
+      setIsEditMode(false);
+      setIsDesignSelected(false);
+      setStatus("デザイン調整を再ロックしました");
+      return;
+    }
+    promptDesignAdjustPassword();
   };
 
   const addCurrentSelectionToOrder = () => {
@@ -1748,41 +2096,51 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    const loadOne = async (design) => {
       try {
-        const pending = designs.filter((d) => !svgCache[d.id]);
-        if (pending.length === 0) {
-          if (!cancelled) setStatus("SVG読み込み完了");
-          return;
-        }
-
-        const results = await Promise.all(
-          pending.map(async (d) => {
-            const front = d.front ? await fetchText(d.front) : "";
-            const back = d.back ? await fetchText(d.back) : "";
-            return { id: d.id, front, back };
-          })
-        );
-
-        if (!cancelled) {
-          setSvgCache((prev) => {
-            const next = { ...prev };
-            results.forEach((r) => {
-              next[r.id] = { front: r.front, back: r.back };
-            });
-            return next;
-          });
+        const front = design.front ? await fetchText(design.front) : "";
+        const back = design.back ? await fetchText(design.back) : "";
+        if (cancelled) return;
+        setSvgCache((prev) => {
+          if (prev[design.id]?.front === front && prev[design.id]?.back === back) return prev;
+          return {
+            ...prev,
+            [design.id]: { front, back },
+          };
+        });
+        if (design.id === designId) {
           setStatus("SVG読み込み完了");
         }
       } catch {
-        if (!cancelled) setStatus("SVGの読み込みに失敗。public/designs を確認してください。");
+        if (!cancelled && design.id === designId) {
+          setStatus("SVGの読み込みに失敗。public/designs を確認してください。");
+        }
       }
-    })();
+    };
+
+    const pendingIds = new Set(designs.filter((d) => !svgCache[d.id]).map((d) => d.id));
+    if (pendingIds.size === 0) {
+      if (!cancelled) setStatus("SVG読み込み完了");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const activeDesign = designs.find((d) => d.id === designId);
+    if (activeDesign && pendingIds.has(activeDesign.id)) {
+      loadOne(activeDesign);
+      pendingIds.delete(activeDesign.id);
+    }
+
+    pendingIds.forEach((id) => {
+      const design = designs.find((d) => d.id === id);
+      if (design) loadOne(design);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [svgCache]);
+  }, [designId, svgCache]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1809,7 +2167,7 @@ export default function App() {
     requestAnimationFrame(sync);
   }, [appView, isMobile, isTablet]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!designId) return;
 
     if (!hasSkippedInitialPlacementReloadRef.current) {
@@ -1853,29 +2211,213 @@ export default function App() {
   }, [designId, fit, placement, canEditCurrentSize]);
 
   useEffect(() => {
-    if (isSwitchingDesign) return;
+    if (!baseVariant) {
+      shirtImgRef.current = null;
+      activeShirtSrcRef.current = "";
+      return;
+    }
 
+    let cancelled = false;
+    const cache = shirtImageCacheRef.current;
+    const cleanupFns = [];
+
+    const activateLoadedShirtImage = (img, src) => {
+      if (cancelled) return;
+      if (shirtSrc !== src) return;
+      shirtImgRef.current = img;
+      activeShirtSrcRef.current = src;
+      setStatus(`Tシャツ画像読み込み完了: ${selectedShirt?.code || shirtCode} / ${side}`);
+      setImageEpoch((prev) => prev + 1);
+    };
+
+    const primeShirtImage = (src, { activate = false } = {}) => {
+      if (!src) return null;
+
+      const cached = cache.get(src);
+      if (cached?.complete) {
+        if (activate) {
+          activateLoadedShirtImage(cached, src);
+        }
+        return cached;
+      }
+
+      if (cached) {
+        if (activate) {
+          const handleLoad = () => activateLoadedShirtImage(cached, src);
+          const handleError = () => {
+            if (!cancelled && shirtSrc === src) {
+              activeShirtSrcRef.current = "";
+              setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
+            }
+          };
+          cached.addEventListener("load", handleLoad);
+          cached.addEventListener("error", handleError);
+          cleanupFns.push(() => {
+            cached.removeEventListener("load", handleLoad);
+            cached.removeEventListener("error", handleError);
+          });
+        }
+        return cached;
+      }
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const handleLoad = () => {
+        cache.set(src, img);
+        if (activate) {
+          activateLoadedShirtImage(img, src);
+        } else if (!cancelled) {
+          setImageEpoch((prev) => prev + 1);
+        }
+      };
+      const handleError = () => {
+        if (!cancelled && activate && shirtSrc === src) {
+          activeShirtSrcRef.current = "";
+          setStatus(`Tシャツ画像の読み込みに失敗: ${src}`);
+        }
+      };
+      img.addEventListener("load", handleLoad);
+      img.addEventListener("error", handleError);
+      cleanupFns.push(() => {
+        img.removeEventListener("load", handleLoad);
+        img.removeEventListener("error", handleError);
+      });
+      cache.set(src, img);
+      img.src = src;
+      return img;
+    };
+
+    const activeSrc = shirtSrc;
+    const alternateSrc = side === "front" ? (baseVariant?.back || "") : (baseVariant?.front || "");
+
+    primeShirtImage(activeSrc, { activate: true });
+    primeShirtImage(alternateSrc, { activate: false });
+
+    return () => {
+      cancelled = true;
+      cleanupFns.forEach((fn) => fn());
+    };
+  }, [baseVariant, shirtSrc, selectedShirt, shirtCode, side]);
+
+  useEffect(() => {
+    const cache = svgImageCacheRef.current;
+    let cancelled = false;
+    const cleanupFns = [];
+
+    const activateLoadedSvgImage = (img, src) => {
+      if (cancelled) return;
+      if (svgDataUrl !== src) return;
+      svgImgRef.current = img;
+      activeSvgSrcRef.current = src;
+      setStatus("SVG画像読み込み完了");
+      setImageEpoch((prev) => prev + 1);
+    };
+
+    const primeSvgImage = (src, { activate = false } = {}) => {
+      if (!src) return null;
+
+      const cached = cache.get(src);
+      if (cached?.complete) {
+        if (activate) {
+          activateLoadedSvgImage(cached, src);
+        }
+        return cached;
+      }
+
+      if (cached) {
+        if (activate) {
+          const handleLoad = () => activateLoadedSvgImage(cached, src);
+          const handleError = () => {
+            if (!cancelled && svgDataUrl === src) {
+              activeSvgSrcRef.current = "";
+              setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
+            }
+          };
+          cached.addEventListener("load", handleLoad);
+          cached.addEventListener("error", handleError);
+          cleanupFns.push(() => {
+            cached.removeEventListener("load", handleLoad);
+            cached.removeEventListener("error", handleError);
+          });
+        }
+        return cached;
+      }
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const handleLoad = () => {
+        cache.set(src, img);
+        if (activate) {
+          activateLoadedSvgImage(img, src);
+        } else if (!cancelled) {
+          setImageEpoch((prev) => prev + 1);
+        }
+      };
+      const handleError = () => {
+        if (!cancelled && activate && svgDataUrl === src) {
+          activeSvgSrcRef.current = "";
+          setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
+        }
+      };
+      img.addEventListener("load", handleLoad);
+      img.addEventListener("error", handleError);
+      cleanupFns.push(() => {
+        img.removeEventListener("load", handleLoad);
+        img.removeEventListener("error", handleError);
+      });
+      cache.set(src, img);
+      img.src = src;
+      return img;
+    };
+
+    const activeSrc = svgDataUrl;
+    const alternateSrc = side === "front" ? svgDataUrlBySide.back : svgDataUrlBySide.front;
+
+    if (!activeSrc) {
+      svgImgRef.current = null;
+      activeSvgSrcRef.current = "";
+      return () => {
+        cancelled = true;
+        cleanupFns.forEach((fn) => fn());
+      };
+    }
+
+    primeSvgImage(activeSrc, { activate: true });
+    primeSvgImage(alternateSrc, { activate: false });
+
+    return () => {
+      cancelled = true;
+      cleanupFns.forEach((fn) => fn());
+    };
+  }, [svgDataUrl, svgDataUrlBySide, side]);
+
+  useEffect(() => {
     if (!shirtSrc) {
       setStatus(`画像なし: ${selectedShirt?.code || "?"} / ${side}`);
       return;
     }
 
-    if (!svgDataUrl || !canvasRef.current || !currentPlacement) return;
+    if (!canvasRef.current || !currentPlacement) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const shirtImg = new Image();
-    const svgImg = new Image();
-    shirtImg.crossOrigin = "anonymous";
-    svgImg.crossOrigin = "anonymous";
+    const shirtImg = shirtImgRef.current;
+    const svgImg = svgImgRef.current;
 
-    let shirtLoaded = false;
-    let svgLoaded = false;
+    if (!shirtImg || !shirtImg.complete || !shirtImg.naturalWidth) return;
+    if (activeShirtSrcRef.current !== shirtSrc) return;
+
+    const canDrawSvg = Boolean(
+      svgDataUrl &&
+      svgImg &&
+      svgImg.complete &&
+      svgImg.naturalWidth &&
+      activeSvgSrcRef.current === svgDataUrl
+    );
 
     const render = () => {
-      if (!shirtLoaded || !svgLoaded) return;
 
       const logicalWidth = canvasSize.width;
       const logicalHeight = canvasSize.height;
@@ -1920,7 +2462,7 @@ export default function App() {
       const pxPerCm = drawH / currentBodyLengthCm;
 
       const designW = currentPlacement.widthCm * pxPerCm;
-      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+      const svgAspect = canDrawSvg && svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
       const designH = designW / svgAspect;
 
       const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
@@ -1944,36 +2486,29 @@ export default function App() {
         zoom,
         panX: pan.x,
         panY: pan.y,
+        handleX: designX + designW,
+        handleY: designY + designH,
       };
 
-      ctx.save();
-      ctx.translate(designCenterX, designCenterY);
-      ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
-      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
-      ctx.restore();
+      if (canDrawSvg) {
+        ctx.save();
+        ctx.translate(designCenterX, designCenterY);
+        ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
+        ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+        ctx.restore();
+      }
 
-      if (isDesignSelected && canEditCurrentSize) {
+      if (canEditActive) {
         drawSelectionBox(ctx, renderInfoRef.current);
       }
 
       ctx.restore();
 
+      if (isSwitchingDesign) setIsSwitchingDesign(false);
       setStatus(`表示OK: ${selectedShirt?.code} / ${fit} / ${side} / ${selectedDesign?.name}`);
     };
 
-    shirtImg.onload = () => {
-      shirtLoaded = true;
-      render();
-    };
-    svgImg.onload = () => {
-      svgLoaded = true;
-      render();
-    };
-    shirtImg.onerror = () => setStatus(`Tシャツ画像の読み込みに失敗: ${shirtSrc}`);
-    svgImg.onerror = () => setStatus("SVG画像の表示に失敗。SVG内容を確認してください。");
-
-    shirtImg.src = shirtSrc;
-    svgImg.src = svgDataUrl;
+    render();
   }, [
     shirtSrc,
     svgDataUrl,
@@ -1989,6 +2524,7 @@ export default function App() {
     canEditCurrentSize,
     isSwitchingDesign,
     previewDpr,
+    imageEpoch,
   ]);
 
   const updateCurrentPlacement = (patch) => {
@@ -1997,6 +2533,18 @@ export default function App() {
       ...prev,
       [side]: { ...prev[side], ...patch },
     }));
+  };
+
+
+  const applySelectionState = ({ nextDesignId = designId, nextFit = fit, nextShirtCode = shirtCode, statusMessage = "" }) => {
+    const nextPlacement = getPlacementStateForView(nextDesignId, nextFit);
+    setPlacement(nextPlacement);
+    setIsDesignSelected(false);
+    setIsSwitchingDesign(false);
+    setDesignId(nextDesignId);
+    setFit(nextFit);
+    setShirtCode(nextShirtCode);
+    if (statusMessage) setStatus(statusMessage);
   };
 
   const refreshPlacementFromDesignsData = (message) => {
@@ -2210,7 +2758,7 @@ export default function App() {
     const currentBodyLengthCm = getBodyLengthCm(fit);
     const pxPerCm = drawH / currentBodyLengthCm;
     const designW = currentPlacement.widthCm * pxPerCm;
-    const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+    const svgAspect = svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
     const designH = designW / svgAspect;
     const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
     const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
@@ -2225,17 +2773,15 @@ export default function App() {
   };
 
   const exportHighResPng = async () => {
-    if (!shirtSrc || !svgDataUrl || !currentPlacement) {
+    const shirtImg = shirtImgRef.current;
+    const svgImg = svgImgRef.current;
+
+    if (!shirtImg || !currentPlacement) {
       setStatus("PNG保存に必要な表示がまだできていません");
       return;
     }
 
     try {
-      const [shirtImg, svgImg] = await Promise.all([
-        loadImageForPreview(shirtSrc),
-        loadImageForPreview(svgDataUrl),
-      ]);
-
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = HIGH_RES_EXPORT_SIZE;
       exportCanvas.height = HIGH_RES_EXPORT_SIZE;
@@ -2248,17 +2794,6 @@ export default function App() {
       ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-
-      const cx = exportCanvas.width / 2;
-      const cy = exportCanvas.height / 2;
-
-      const panScaleX = exportCanvas.width / Math.max(1, canvasSize.width);
-      const panScaleY = exportCanvas.height / Math.max(1, canvasSize.height);
-
-      ctx.save();
-      ctx.translate(cx + pan.x * panScaleX, cy + pan.y * panScaleY);
-      ctx.scale(zoom, zoom);
-      ctx.translate(-cx, -cy);
 
       const shirtAspect = shirtImg.width / shirtImg.height;
       const maxW = exportCanvas.width * 0.92;
@@ -2280,36 +2815,28 @@ export default function App() {
 
       ctx.drawImage(shirtImg, shirtX, shirtY, drawW, drawH);
 
-      const currentBodyLengthCm = getBodyLengthCm(fit);
-      const pxPerCm = drawH / currentBodyLengthCm;
-      const designW = currentPlacement.widthCm * pxPerCm;
-      const svgAspect = svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
-      const designH = designW / svgAspect;
-      const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
-      const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
+      const canDrawSvg = Boolean(svgImg && activeSvgSrcRef.current === svgDataUrl);
+      if (canDrawSvg) {
+        const currentBodyLengthCm = getBodyLengthCm(fit);
+        const pxPerCm = drawH / currentBodyLengthCm;
+        const designW = currentPlacement.widthCm * pxPerCm;
+        const svgAspect = svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+        const designH = designW / svgAspect;
+        const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
+        const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
 
-      ctx.save();
-      ctx.translate(designCenterX, designCenterY);
-      ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
-      ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
-      ctx.restore();
-
-      ctx.restore();
-
-      const exportResult = await downloadCanvas(
-        exportCanvas,
-        `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`
-      );
-
-      if (exportResult === "shared") {
-        setStatus(`高解像度PNGを共有メニューへ渡しました: ${HIGH_RES_EXPORT_SIZE}px`);
-      } else if (exportResult === "cancelled") {
-        setStatus("画像共有をキャンセルしました");
-      } else {
-        setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
+        ctx.save();
+        ctx.translate(designCenterX, designCenterY);
+        ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
+        ctx.drawImage(svgImg, -designW / 2, -designH / 2, designW, designH);
+        ctx.restore();
       }
-    } catch {
-      setStatus("高解像度PNGの書き出しに失敗しました");
+
+      downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
+      notifyStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`, { forceAlert: isMobile && !isDesignAdjustAuthed });
+    } catch (error) {
+      console.error(error);
+      notifyStatus("高解像度PNGの書き出しに失敗しました", { forceAlert: true });
     }
   };
 
@@ -2345,6 +2872,11 @@ export default function App() {
 
   const applyFavorite = (favorite) => {
     if (!favorite) return;
+
+    const nextPlacement = getPlacementStateForView(favorite.designId, favorite.fit);
+    setIsSwitchingDesign(true);
+    setPlacement(nextPlacement);
+    setIsDesignSelected(false);
     setDesignId(favorite.designId);
     setShirtCode(favorite.shirtCode);
     setInkColor(favorite.inkColor);
@@ -2367,10 +2899,16 @@ export default function App() {
     setZoom((prev) => clamp(prev * factor, MIN_ZOOM, MAX_ZOOM));
   };
 
-  const toLogicalPoint = (point, canvas) => ({
-    x: (point.x - (canvas.width / 2 + pan.x)) / zoom + canvas.width / 2,
-    y: (point.y - (canvas.height / 2 + pan.y)) / zoom + canvas.height / 2,
-  });
+  const toLogicalPoint = (point, canvas) => {
+    const logicalWidth = canvas.clientWidth || canvasSize.width || canvas.width;
+    const logicalHeight = canvas.clientHeight || canvasSize.height || canvas.height;
+    const activeZoom = Math.max(zoomRef.current, 0.0001);
+
+    return {
+      x: (point.x - (logicalWidth / 2 + pan.x)) / activeZoom + logicalWidth / 2,
+      y: (point.y - (logicalHeight / 2 + pan.y)) / activeZoom + logicalHeight / 2,
+    };
+  };
 
   const startSinglePan = (e) => {
     panRef.current = {
@@ -2392,7 +2930,10 @@ export default function App() {
     touchRef.current.active = false;
     touchRef.current.mode = null;
     touchRef.current.startDistance = 0;
-    touchRef.current.startZoom = zoom;
+    touchRef.current.startZoom = zoomRef.current;
+    pinchRef.current.active = false;
+    pinchRef.current.startDistance = 0;
+    pinchRef.current.startZoom = zoomRef.current;
   };
 
   const stopSingleTouchInteraction = () => {
@@ -2535,22 +3076,20 @@ export default function App() {
     if (!canvas) return;
 
     if (e.touches.length === 2) {
-      const [t1, t2] = e.touches;
       stopSingleTouchInteraction();
       setIsDesignSelected(false);
+      const [t1, t2] = e.touches;
+      const startDistance = getTouchDistance(t1, t2);
       touchRef.current.active = true;
       touchRef.current.mode = "pinch";
-      touchRef.current.startDistance = getTouchDistance(t1, t2);
-      touchRef.current.startZoom = zoom;
+      touchRef.current.startDistance = startDistance;
+      touchRef.current.startZoom = zoomRef.current;
+      pinchRef.current = { active: true, startDistance, startZoom: zoomRef.current };
       e.preventDefault();
       return;
     }
 
-    if (e.touches.length !== 1) return;
-    if (touchRef.current.mode === "pinch") {
-      e.preventDefault();
-      return;
-    }
+    if (e.touches.length !== 1 || pinchRef.current.active || touchRef.current.mode === "pinch") return;
 
     const info = renderInfoRef.current;
     if (!currentPlacement || !info) return;
@@ -2559,7 +3098,7 @@ export default function App() {
     const point = getCanvasPoint(touch.clientX, touch.clientY, canvas);
     const logicalPoint = toLogicalPoint(point, canvas);
 
-    if (interactionMode === "pan") {
+    if (!canEditActive) {
       panRef.current = {
         active: true,
         pointerId: "touch",
@@ -2568,12 +3107,13 @@ export default function App() {
         startOffsetX: pan.x,
         startOffsetY: pan.y,
       };
+      dragRef.current.active = false;
       setIsDesignSelected(false);
       e.preventDefault();
       return;
     }
 
-    if (canEditActive && hitResizeHandle(logicalPoint, info)) {
+    if (hitResizeHandle(logicalPoint, info)) {
       dragRef.current = {
         active: true,
         mode: "resize-se",
@@ -2584,12 +3124,13 @@ export default function App() {
         startPlacementY: currentPlacement.y,
         startWidthCm: currentPlacement.widthCm,
       };
+      panRef.current.active = false;
       setIsDesignSelected(true);
       e.preventDefault();
       return;
     }
 
-    if (canEditActive && hitDesignBody(logicalPoint, info)) {
+    if (hitDesignBody(logicalPoint, info)) {
       dragRef.current = {
         active: true,
         mode: "move",
@@ -2600,12 +3141,23 @@ export default function App() {
         startPlacementY: currentPlacement.y,
         startWidthCm: currentPlacement.widthCm,
       };
+      panRef.current.active = false;
       setIsDesignSelected(true);
       e.preventDefault();
       return;
     }
 
+    panRef.current = {
+      active: true,
+      pointerId: "touch",
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startOffsetX: pan.x,
+      startOffsetY: pan.y,
+    };
+    dragRef.current.active = false;
     setIsDesignSelected(false);
+    e.preventDefault();
   };
 
   const onTouchMove = (e) => {
@@ -2614,36 +3166,37 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    if (e.touches.length === 2) {
+    if (e.touches.length === 2 && !pinchRef.current.active) {
+      stopSingleTouchInteraction();
       const [t1, t2] = e.touches;
-      const currentDistance = getTouchDistance(t1, t2);
-
-      if (!touchRef.current.active || touchRef.current.mode !== "pinch" || touchRef.current.startDistance <= 0) {
-        stopSingleTouchInteraction();
-        setIsDesignSelected(false);
-        touchRef.current.active = true;
-        touchRef.current.mode = "pinch";
-        touchRef.current.startDistance = currentDistance;
-        touchRef.current.startZoom = zoom;
-        e.preventDefault();
-        return;
-      }
-
-      const scale = currentDistance / touchRef.current.startDistance;
-      const nextZoom = clamp(touchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
-      setZoom(nextZoom);
+      const startDistance = getTouchDistance(t1, t2);
+      touchRef.current.active = true;
+      touchRef.current.mode = "pinch";
+      touchRef.current.startDistance = startDistance;
+      touchRef.current.startZoom = zoomRef.current;
+      pinchRef.current = { active: true, startDistance, startZoom: zoomRef.current };
       e.preventDefault();
       return;
     }
 
-    if (touchRef.current.mode === "pinch") {
+    if (e.touches.length === 2 && pinchRef.current.active) {
+      const [t1, t2] = e.touches;
+      const currentDistance = getTouchDistance(t1, t2);
+      const scale = currentDistance / Math.max(pinchRef.current.startDistance || 1, 1);
+      const nextZoom = clamp(pinchRef.current.startZoom * scale, MIN_ZOOM, MAX_ZOOM);
+      setZoom(nextZoom);
+      zoomRef.current = nextZoom;
+      e.preventDefault();
+      return;
+    }
+
+    if (pinchRef.current.active || touchRef.current.mode === "pinch") {
       e.preventDefault();
       return;
     }
 
     const info = renderInfoRef.current;
-    if (!info) return;
-    if (e.touches.length !== 1) return;
+    if (!info || e.touches.length !== 1) return;
 
     const touch = e.touches[0];
 
@@ -2666,7 +3219,6 @@ export default function App() {
     if (dragRef.current.mode === "move") {
       const dxCanvas = logicalPoint.x - dragRef.current.startCanvasX;
       const dyCanvas = logicalPoint.y - dragRef.current.startCanvasY;
-
       const deltaXPercent = (dxCanvas / info.drawW) * 100;
       const deltaYPercent = (dyCanvas / info.drawH) * 100;
 
@@ -2692,21 +3244,24 @@ export default function App() {
   const onTouchEnd = (e) => {
     if (!isTouchCapable) return;
 
-    if (touchRef.current.mode === "pinch") {
-      if (e.touches.length < 2) {
-        touchRef.current.active = false;
-        touchRef.current.mode = null;
-        touchRef.current.startDistance = 0;
-        touchRef.current.startZoom = zoom;
-        stopSingleTouchInteraction();
-      }
+    if (e.touches.length < 2) {
+      touchRef.current.active = false;
+      touchRef.current.mode = null;
+      touchRef.current.startDistance = 0;
+      touchRef.current.startZoom = zoomRef.current;
+      pinchRef.current.active = false;
+      pinchRef.current.startDistance = 0;
+      pinchRef.current.startZoom = zoomRef.current;
+    }
+
+    if (e.touches.length === 0) {
+      stopSingleTouchInteraction();
       return;
     }
 
-    if (e.touches.length === 1) {
+    if (e.touches.length === 1 && !pinchRef.current.active) {
       const touch = e.touches[0];
-
-      if (interactionMode === "pan") {
+      if (!dragRef.current.active) {
         panRef.current = {
           active: true,
           pointerId: "touch",
@@ -2715,13 +3270,8 @@ export default function App() {
           startOffsetX: pan.x,
           startOffsetY: pan.y,
         };
-      } else {
-        stopSingleTouchInteraction();
       }
-      return;
     }
-
-    clearInteractionState();
   };
 
   const endDrag = (e) => {
@@ -2856,7 +3406,9 @@ export default function App() {
                         height: "auto",
                       }}
                     />
-                    <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
+                    {isDesignAdjustAuthed && (
+                      <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
+                    )}
                   </div>
 
                   <div
@@ -2873,6 +3425,9 @@ export default function App() {
                     </IconButton>
                     <IconButton title="お気に入り保存" ariaLabel="お気に入り保存" compact={compact} onClick={saveCurrentFavorite}>
                       <Star size={compact ? 16 : 18} strokeWidth={2.25} />
+                    </IconButton>
+                    <IconButton title="ヘルプ" ariaLabel="ヘルプ" compact={compact} onClick={() => setIsHelpOpen(true)}>
+                      <CircleHelp size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
                     <IconButton
                       title="高解像度PNG保存 / 共有（3000px）"
@@ -3004,9 +3559,11 @@ export default function App() {
                   />
                 </div>
 
-                <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
-                  状態: {isSwitchingDesign ? "デザイン切替中..." : status}
-                </div>
+                {isDesignAdjustAuthed && (
+                  <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
+                    状態: {isSwitchingDesign ? "デザイン切替中..." : status}
+                  </div>
+                )}
 
                 <div
                   style={{
@@ -3018,9 +3575,11 @@ export default function App() {
                   }}
                 >
                   <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>お気に入り</div>
-                  <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
-                    いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
-                  </div>
+                  {isDesignAdjustAuthed && (
+                    <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
+                      いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
+                    </div>
+                  )}
 
                   {favorites.length === 0 ? (
                     <div
@@ -3073,7 +3632,7 @@ export default function App() {
                               style={{
                                 width: "100%",
                                 aspectRatio: "1 / 1",
-                                background: "#ffffff",
+                                background: "#f5f5f4",
                                 overflow: "hidden",
                                 borderBottom: "1px solid #f0ede9",
                               }}
@@ -3217,15 +3776,18 @@ export default function App() {
                           size={size}
                           active={fit === size}
                           editable={EDITABLE_SIZES.includes(size)}
+                          showEditableMark={isDesignAdjustAuthed}
                           onClick={() => setFit(size)}
                           compact={compact}
                         />
                       ))}
                     </div>
 
-                    <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
-                      ● が付いているサイズだけ編集できます
-                    </div>
+                    {isDesignAdjustAuthed && (
+                      <div style={{ fontSize: 12, color: "#78716c", marginTop: -2, marginBottom: 14 }}>
+                        ● が付いているサイズだけ編集できます
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -3318,8 +3880,14 @@ export default function App() {
                   <DesignPicker
                     designs={designs}
                     designId={designId}
-                    setDesignId={setDesignId}
-                    setIsSwitchingDesign={setIsSwitchingDesign}
+                    onSelectDesign={(nextDesignId) => {
+                      if (nextDesignId === designId) return;
+                      const nextPlacement = getPlacementStateForView(nextDesignId, fit);
+                      setIsSwitchingDesign(true);
+                      setPlacement(nextPlacement);
+                      setIsDesignSelected(false);
+                      setDesignId(nextDesignId);
+                    }}
                     columns={designColumns}
                     compact={compact}
                     isMobile={isMobile}
@@ -3336,22 +3904,28 @@ export default function App() {
                   isMobile={true}
                   fontSize={isMobile ? 18 : 20}
                   rightElement={
-                    <span
+                    <button
+                      type="button"
+                      onClick={toggleDesignAdjustLock}
+                      title={isDesignAdjustAuthed ? "押すと再ロック" : "押して認証"}
+                      aria-label={isDesignAdjustAuthed ? "デザイン調整を再ロック" : "デザイン調整を認証"}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 5,
                         fontSize: 11,
+                        fontWeight: 700,
                         color: isDesignAdjustAuthed ? "#16a34a" : "#78716c",
                         border: "1px solid #e7e5e4",
                         borderRadius: 999,
                         padding: "4px 8px",
                         background: "#fafaf9",
+                        cursor: "pointer",
                       }}
                     >
                       <Lock size={12} />
                       {isDesignAdjustAuthed ? "認証済み" : "ロック中"}
-                    </span>
+                    </button>
                   }
                 />
 
@@ -3542,6 +4116,7 @@ export default function App() {
             </div>
           </div>
         )}
+      {isHelpOpen && <HelpModal open={isHelpOpen} onClose={() => setIsHelpOpen(false)} compact={compact} isMobile={isMobile} />}
       </div>
     </div>
   );
