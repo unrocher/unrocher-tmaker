@@ -130,12 +130,55 @@ async function fetchText(url) {
   return res.text();
 }
 
-function downloadCanvas(canvas, fileName) {
-  const link = document.createElement("a");
-  link.download = fileName;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-  return "downloaded";
+function dataUrlToFile(dataUrl, fileName) {
+  const parts = String(dataUrl).split(",");
+  if (parts.length < 2) throw new Error("data URL の変換に失敗しました");
+  const mimeMatch = parts[0].match(/data:([^;]+);base64/);
+  const mime = mimeMatch?.[1] || "image/png";
+  const binary = atob(parts[1]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], fileName, { type: mime });
+}
+
+async function downloadCanvas(canvas, fileName) {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const dataUrl = canvas.toDataURL("image/png");
+
+  const directDownload = () => {
+    const link = document.createElement("a");
+    link.download = fileName;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return "downloaded";
+  };
+
+  if (isMobile) {
+    if (typeof navigator === "undefined" || !navigator.share) {
+      return "mobile-share-unavailable";
+    }
+    try {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) return "share-blob-failed";
+      const file = new File([blob], fileName, { type: "image/png" });
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+        return "share-unsupported-files";
+      }
+      await navigator.share({ files: [file], title: fileName, text: fileName });
+      return "shared";
+    } catch (shareError) {
+      if (shareError && shareError.name === "AbortError") {
+        return "share-cancelled";
+      }
+      console.error(shareError);
+      return "share-failed";
+    }
+  }
+
+  return directDownload();
 }
 
 function panelStyle(compact = false) {
@@ -1408,6 +1451,14 @@ export default function App() {
   const [savedOrders, setSavedOrders] = useState(() => loadOrderDrafts());
   const [interactionMode, setInteractionMode] = useState("pan");
   const [isEditMode, setIsEditMode] = useState(false);
+
+  const notifyStatus = (message, options = {}) => {
+    const { forceAlert = false } = options || {};
+    setStatus(message);
+    if (forceAlert && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+  };
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1440));
   const [isDesignAdjustAuthed, setIsDesignAdjustAuthed] = useState(() => loadDesignAdjustAuth());
 
@@ -2493,12 +2544,27 @@ export default function App() {
         ctx.restore();
       }
 
-      setStatus("高解像度PNGを書き出し中...");
-      downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
-      setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
+      const saveMessage = "高解像度PNGを書き出し中...";
+      notifyStatus(saveMessage, { forceAlert: isMobile });
+      const exportResult = await downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
+      if (exportResult === "shared") {
+        notifyStatus(`高解像度PNGを共有しました: ${HIGH_RES_EXPORT_SIZE}px`, { forceAlert: isMobile && !isDesignAdjustAuthed });
+      } else if (exportResult === "share-unsupported-files") {
+        notifyStatus("このスマホブラウザは画像ファイル共有に対応していません", { forceAlert: true });
+      } else if (exportResult === "mobile-share-unavailable") {
+        notifyStatus("このスマホブラウザでは共有保存に対応していません。Safari か Chrome で開いて試してください", { forceAlert: true });
+      } else if (exportResult === "share-blob-failed") {
+        notifyStatus("画像データの作成に失敗しました", { forceAlert: true });
+      } else if (exportResult === "share-cancelled") {
+        notifyStatus("共有をキャンセルしました", { forceAlert: true });
+      } else if (exportResult === "share-failed") {
+        notifyStatus("共有シートを開けませんでした", { forceAlert: true });
+      } else {
+        notifyStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`, { forceAlert: isMobile && !isDesignAdjustAuthed });
+      }
     } catch (error) {
       console.error(error);
-      setStatus("高解像度PNGの書き出しに失敗しました");
+      notifyStatus("高解像度PNGの書き出しに失敗しました", { forceAlert: true });
     }
   };
 
