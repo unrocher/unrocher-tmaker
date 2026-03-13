@@ -38,7 +38,7 @@ const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
 const MAX_FAVORITES = 30;
-const APP_VERSION = "V04.2.10-touch-stable-null-guard";
+const APP_VERSION = "V04.2.11-touch-stable-export-frame-fix";
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -130,47 +130,11 @@ async function fetchText(url) {
   return res.text();
 }
 
-async function downloadCanvas(canvas, fileName) {
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/png");
-  });
-
-  if (!blob) {
-    throw new Error("PNG blob creation failed");
-  }
-
-  const file = new File([blob], fileName, { type: "image/png" });
-  const nav = typeof navigator !== "undefined" ? navigator : null;
-
-  if (nav?.canShare && nav?.share) {
-    try {
-      if (nav.canShare({ files: [file] })) {
-        await nav.share({
-          files: [file],
-          title: fileName,
-        });
-        return "shared";
-      }
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return "cancelled";
-      }
-    }
-  }
-
-  const blobUrl = URL.createObjectURL(blob);
+function downloadCanvas(canvas, fileName) {
   const link = document.createElement("a");
-  link.href = blobUrl;
   link.download = fileName;
-  link.rel = "noopener noreferrer";
-  document.body.appendChild(link);
+  link.href = canvas.toDataURL("image/png");
   link.click();
-  document.body.removeChild(link);
-
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl);
-  }, 1500);
-
   return "downloaded";
 }
 
@@ -2470,17 +2434,15 @@ export default function App() {
   };
 
   const exportHighResPng = async () => {
-    if (!shirtSrc || !svgDataUrl || !currentPlacement) {
+    const shirtImg = shirtImgRef.current;
+    const svgImg = svgImgRef.current;
+
+    if (!shirtImg || !currentPlacement) {
       setStatus("PNG保存に必要な表示がまだできていません");
       return;
     }
 
     try {
-      const [shirtImg, svgImg] = await Promise.all([
-        loadImageForPreview(shirtSrc),
-        loadImageForPreview(svgDataUrl),
-      ]);
-
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = HIGH_RES_EXPORT_SIZE;
       exportCanvas.height = HIGH_RES_EXPORT_SIZE;
@@ -2493,17 +2455,6 @@ export default function App() {
       ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-
-      const cx = exportCanvas.width / 2;
-      const cy = exportCanvas.height / 2;
-
-      const panScaleX = exportCanvas.width / Math.max(1, canvasSize.width);
-      const panScaleY = exportCanvas.height / Math.max(1, canvasSize.height);
-
-      ctx.save();
-      ctx.translate(cx + pan.x * panScaleX, cy + pan.y * panScaleY);
-      ctx.scale(zoom, zoom);
-      ctx.translate(-cx, -cy);
 
       const shirtAspect = shirtImg.width / shirtImg.height;
       const maxW = exportCanvas.width * 0.92;
@@ -2525,15 +2476,16 @@ export default function App() {
 
       ctx.drawImage(shirtImg, shirtX, shirtY, drawW, drawH);
 
-      const currentBodyLengthCm = getBodyLengthCm(fit);
-      const pxPerCm = drawH / currentBodyLengthCm;
-      const designW = currentPlacement.widthCm * pxPerCm;
-      const svgAspect = canDrawSvg && svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
-      const designH = designW / svgAspect;
-      const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
-      const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
-
+      const canDrawSvg = Boolean(svgImg && activeSvgSrcRef.current === svgDataUrl);
       if (canDrawSvg) {
+        const currentBodyLengthCm = getBodyLengthCm(fit);
+        const pxPerCm = drawH / currentBodyLengthCm;
+        const designW = currentPlacement.widthCm * pxPerCm;
+        const svgAspect = svgImg && svgImg.width && svgImg.height ? svgImg.width / svgImg.height : 1;
+        const designH = designW / svgAspect;
+        const designCenterX = shirtX + (currentPlacement.x / 100) * drawW;
+        const designCenterY = shirtY + (currentPlacement.y / 100) * drawH;
+
         ctx.save();
         ctx.translate(designCenterX, designCenterY);
         ctx.scale(currentPlacement.flipX ? -1 : 1, 1);
@@ -2541,21 +2493,11 @@ export default function App() {
         ctx.restore();
       }
 
-      ctx.restore();
-
-      const exportResult = await downloadCanvas(
-        exportCanvas,
-        `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`
-      );
-
-      if (exportResult === "shared") {
-        setStatus(`高解像度PNGを共有メニューへ渡しました: ${HIGH_RES_EXPORT_SIZE}px`);
-      } else if (exportResult === "cancelled") {
-        setStatus("画像共有をキャンセルしました");
-      } else {
-        setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
-      }
-    } catch {
+      setStatus("高解像度PNGを書き出し中...");
+      downloadCanvas(exportCanvas, `anrocher-${shirtCode}-${fit}-${designId}-${side}-3000px.png`);
+      setStatus(`高解像度PNGを書き出しました: ${HIGH_RES_EXPORT_SIZE}px`);
+    } catch (error) {
+      console.error(error);
       setStatus("高解像度PNGの書き出しに失敗しました");
     }
   };
