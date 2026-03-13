@@ -142,12 +142,29 @@ function dataUrlToFile(dataUrl, fileName) {
 }
 
 async function downloadCanvas(canvas, fileName) {
-  const link = document.createElement("a");
-  link.download = fileName;
-  link.href = canvas.toDataURL("image/png");
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  const triggerDownload = (href) => {
+    const link = document.createElement("a");
+    link.download = fileName;
+    link.href = href;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  if (canvas.toBlob) {
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (blob) {
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        triggerDownload(blobUrl);
+        return "downloaded";
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    }
+  }
+
+  triggerDownload(canvas.toDataURL("image/png"));
   return "downloaded";
 }
 
