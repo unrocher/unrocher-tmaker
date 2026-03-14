@@ -196,6 +196,13 @@ function buttonStyle(active = false, compact = false) {
     cursor: "pointer",
     fontWeight: 700,
     fontSize: compact ? 13 : 14,
+    color: "#1f2937",
+    WebkitTextFillColor: "#1f2937",
+    opacity: 1,
+    appearance: "none",
+    WebkitAppearance: "none",
+    lineHeight: 1.2,
+    boxSizing: "border-box",
   };
 }
 
@@ -225,6 +232,9 @@ function IconButton({ title, onClick, compact = false, children, ariaLabel, acti
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
+        overflow: "visible",
+        color: "#1f2937",
+        WebkitTextFillColor: "#1f2937",
       }}
       onClick={onClick}
     >
@@ -3519,7 +3529,7 @@ export default function App() {
                       onClick={toggleSide}
                     >
                       <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
-                      <span>{side === "front" ? "裏" : "表"}</span>
+                      <span style={{ color: "#1f2937", WebkitTextFillColor: "#1f2937" }}>{side === "front" ? "裏" : "表"}</span>
                     </button>
 
                     <div
@@ -3533,7 +3543,7 @@ export default function App() {
                       <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
                         <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
                       </IconButton>
-                      <div style={{ minWidth: 50, textAlign: "center", fontWeight: 700 }}>{Math.round(zoom * 100)}%</div>
+                      <div style={{ minWidth: 50, textAlign: "center", fontWeight: 700, color: "#1f2937", WebkitTextFillColor: "#1f2937" }}>{Math.round(zoom * 100)}%</div>
                       <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
                         <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
                       </IconButton>
