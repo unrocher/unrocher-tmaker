@@ -988,7 +988,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
           ...inputStyle(compact),
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
           background: "#fff",
           textAlign: "left",
           cursor: "pointer",
@@ -1002,7 +1002,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
             width: compact ? 40 : 44,
             height: compact ? 40 : 44,
             objectFit: "cover",
-            borderRadius: 10,
+            borderRadius: 8,
             border: "1px solid #d6d3d1",
             background: "#fafaf9",
             flexShrink: 0,
@@ -1533,7 +1533,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
               style={{
                 display: "grid",
                 gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                gap: 10,
+                gap: 6,
               }}
             >
               {[
@@ -1549,7 +1549,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                   style={{
                     border: "1px solid #f0ede9",
                     borderRadius: 14,
-                    padding: "12px 14px",
+                    padding: "8px 14px",
                     background: "#fff",
                     fontSize: 14,
                     color: "#44403c",
@@ -1576,7 +1576,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                     alignItems: "start",
                     border: "1px solid #f0ede9",
                     borderRadius: 14,
-                    padding: "12px 14px",
+                    padding: "6px 12px",
                     background: index === steps.length - 1 ? "#fff7f3" : "#fff",
                   }}
                 >
@@ -1599,6 +1599,66 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                   <div style={{ ...sectionTextStyle, fontWeight: 700 }}>{step}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>操作アイコンについて</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: 6,
+              }}
+            >
+              {[
+                { icon: Dices, label: "ランダム", text: "Tシャツやデザインの組み合わせをランダムに切り替えます" },
+                { icon: Star, label: "お気に入り", text: "今の内容をお気に入りとして保存します" },
+                { icon: Repeat2, label: "表／裏", text: "Tシャツの表面・背面を切り替えます" },
+                { icon: Plus, label: "ズーム", text: "プレビューを拡大・縮小して見やすく確認できます" },
+                { icon: House, label: "表示リセット", text: "プレビュー表示を見やすい初期状態に戻します" },
+                { icon: CircleHelp, label: "ヘルプ", text: "使い方やよくある質問を開きます" },
+                { icon: Download, label: "保存", text: "確認用の画像を保存できます" },
+                { icon: FileText, label: "発注", text: "発注書の作成・保存・読み込みができます" },
+                { icon: ClipboardPlus, label: "BASE", text: "注文ページへ進みます" },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.label}
+                    style={{
+                      border: "1px solid #f0ede9",
+                      borderRadius: 14,
+                      padding: "8px 10px",
+                      background: "#fff",
+                      display: "grid",
+                      gridTemplateColumns: "28px 1fr",
+                      gap: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 8,
+                        background: "#f4feff",
+                        border: "1px solid #d9f0f2",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#1f2937",
+                      }}
+                    >
+                      <Icon size={13} strokeWidth={2.1} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#1c1917", marginBottom: 2 }}>{item.label}</div>
+                      <div style={sectionTextStyle}>{item.text}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -3381,11 +3441,8 @@ export default function App() {
               <div style={panelStyle(compact)}>
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: "grid",
                     gap: 12,
-                    alignItems: "center",
-                    flexWrap: "wrap",
                     marginBottom: 16,
                     minWidth: 0,
                   }}
@@ -3410,8 +3467,8 @@ export default function App() {
                     style={{
                       display: "flex",
                       gap: 8,
+                      alignItems: "center",
                       flexWrap: "wrap",
-                      width: isTablet ? "100%" : "auto",
                       minWidth: 0,
                     }}
                   >
@@ -3420,6 +3477,43 @@ export default function App() {
                     </IconButton>
                     <IconButton title="お気に入り保存" ariaLabel="お気に入り保存" compact={compact} onClick={saveCurrentFavorite}>
                       <Star size={compact ? 16 : 18} strokeWidth={2.25} />
+                    </IconButton>
+
+                    <button
+                      type="button"
+                      title={side === "front" ? "裏を見る" : "表を見る"}
+                      aria-label={side === "front" ? "裏を見る" : "表を見る"}
+                      style={{
+                        ...buttonStyle(false, compact),
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                      onClick={toggleSide}
+                    >
+                      <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
+                      <span>{side === "front" ? "裏" : "表"}</span>
+                    </button>
+
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                        minWidth: 0,
+                      }}
+                    >
+                      <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
+                        <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
+                      </IconButton>
+                      <div style={{ minWidth: 50, textAlign: "center", fontWeight: 700 }}>{Math.round(zoom * 100)}%</div>
+                      <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
+                        <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
+                      </IconButton>
+                    </div>
+
+                    <IconButton title="表示リセット" ariaLabel="表示リセット" compact={compact} onClick={resetView}>
+                      <House size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
                     <IconButton title="ヘルプ" ariaLabel="ヘルプ" compact={compact} onClick={() => setIsHelpOpen(true)}>
                       <CircleHelp size={compact ? 16 : 18} strokeWidth={2.25} />
@@ -3432,80 +3526,41 @@ export default function App() {
                     >
                       <Download size={compact ? 16 : 18} strokeWidth={2.25} />
                     </IconButton>
+
+                    <button
+                      type="button"
+                      title="発注書"
+                      aria-label="発注書"
+                      style={{
+                        ...buttonStyle(false, compact),
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                      onClick={openOrderWithCurrentSelection}
+                    >
+                      <FileText size={compact ? 15 : 17} strokeWidth={2.25} />
+                      <span>発注書</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      title={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+                      aria-label={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
+                      style={{
+                        ...buttonStyle(false, compact),
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        opacity: hasBaseOrderUrl ? 1 : 0.5,
+                        cursor: hasBaseOrderUrl ? "pointer" : "not-allowed",
+                      }}
+                      onClick={openBaseOrderPage}
+                      disabled={!hasBaseOrderUrl}
+                    >
+                      <span>BASEで注文する</span>
+                    </button>
                   </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    marginBottom: 10,
-                    flexWrap: "wrap",
-                    minWidth: 0,
-                  }}
-                >
-                  <button
-                    type="button"
-                    title={side === "front" ? "裏を見る" : "表を見る"}
-                    aria-label={side === "front" ? "裏を見る" : "表を見る"}
-                    style={{
-                      ...buttonStyle(false, compact),
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                    onClick={toggleSide}
-                  >
-                    <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
-                    <span>{side === "front" ? "裏" : "表"}</span>
-                  </button>
-
-                  <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
-                    <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
-                  </IconButton>
-                  <div style={{ minWidth: 64, textAlign: "center", fontWeight: 700 }}>{Math.round(zoom * 100)}%</div>
-                  <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
-                    <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
-                  </IconButton>
-                  <IconButton title="表示リセット" ariaLabel="表示リセット" compact={compact} onClick={resetView}>
-                    <House size={compact ? 16 : 18} strokeWidth={2.25} />
-                  </IconButton>
-
-                  <button
-                    type="button"
-                    title="発注書"
-                    aria-label="発注書"
-                    style={{
-                      ...buttonStyle(false, compact),
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginLeft: compact ? 8 : 12,
-                    }}
-                    onClick={openOrderWithCurrentSelection}
-                  >
-                    <FileText size={compact ? 15 : 17} strokeWidth={2.25} />
-                    <span>発注書</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    title={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
-                    aria-label={hasBaseOrderUrl ? "BASEで注文する" : "このデザインはまだBASE未設定"}
-                    style={{
-                      ...buttonStyle(false, compact),
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      opacity: hasBaseOrderUrl ? 1 : 0.5,
-                      cursor: hasBaseOrderUrl ? "pointer" : "not-allowed",
-                    }}
-                    onClick={openBaseOrderPage}
-                    disabled={!hasBaseOrderUrl}
-                  >
-                    <span>BASEで注文する</span>
-                  </button>
                 </div>
 
                 <div
