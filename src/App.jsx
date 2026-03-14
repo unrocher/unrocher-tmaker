@@ -1603,6 +1603,33 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
           </div>
 
           <div style={cardStyle}>
+            <div style={sectionTitleStyle}>PCでの操作</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                "Shift＋ドラッグ：表示位置を動かせます",
+                "Shift＋マウスホイール：プレビューを拡大・縮小できます",
+                "クリック：各デザインや設定を選べます",
+              ].map((item) => (
+                <div
+                  key={item}
+                  style={{
+                    border: "1px solid #f0ede9",
+                    borderRadius: 14,
+                    padding: "8px 14px",
+                    background: "#fff",
+                    fontSize: 14,
+                    color: "#44403c",
+                    lineHeight: 1.6,
+                    fontWeight: 700,
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
             <div style={sectionTitleStyle}>操作アイコンについて</div>
             <div
               style={{
@@ -1641,7 +1668,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                       style={{
                         width: 24,
                         height: 24,
-                        borderRadius: 8,
+                        borderRadius: 10,
                         background: "#f4feff",
                         border: "1px solid #d9f0f2",
                         display: "flex",
