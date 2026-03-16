@@ -729,6 +729,51 @@ function getBaseVariantForShirt(shirt) {
   return shirt.variants.M || shirt.variants.S || shirt.variants.XS || Object.values(shirt.variants)[0] || null;
 }
 
+function getVariantImageByTierAndSide(variant, tier, side) {
+  if (!variant) return "";
+  const opposite = side === "front" ? "back" : "front";
+  const cap = side === "front" ? "Front" : "Back";
+  const oppositeCap = opposite === "front" ? "Front" : "Back";
+
+  const tierObj = variant?.[tier];
+  const candidates = [
+    tierObj?.[side],
+    tierObj?.[opposite],
+    variant?.[`${side}${tier === "main" ? "Main" : "List"}`],
+    variant?.[`${opposite}${tier === "main" ? "Main" : "List"}`],
+    variant?.[`${tier}${cap}`],
+    variant?.[`${tier}${oppositeCap}`],
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+
+function getVariantDisplayImage(variant, side, usage = "main") {
+  if (!variant) return "";
+  const opposite = side === "front" ? "back" : "front";
+
+  if (usage === "list") {
+    return (
+      getVariantImageByTierAndSide(variant, "list", side) ||
+      getVariantImageByTierAndSide(variant, "main", side) ||
+      variant?.[side] ||
+      variant?.[opposite] ||
+      ""
+    );
+  }
+
+  return (
+    getVariantImageByTierAndSide(variant, "main", side) ||
+    variant?.[side] ||
+    variant?.[opposite] ||
+    getVariantImageByTierAndSide(variant, "list", side) ||
+    ""
+  );
+}
+
 function getShirtScale(sizeKey) {
   const base = getBodyLengthCm(BASE_PRINT_SIZE);
   const current = getBodyLengthCm(sizeKey);
@@ -987,7 +1032,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
 
   const getThumb = (shirt) => {
     const baseVariant = getBaseVariantForShirt(shirt);
-    return side === "front" ? baseVariant?.front : baseVariant?.back;
+    return getVariantDisplayImage(baseVariant, side, "list");
   };
 
   return (
@@ -1895,9 +1940,7 @@ export default function App() {
   const hasBaseOrderUrl = Boolean(currentBaseOrderUrl);
   const baseVariant = useMemo(() => getBaseVariantForShirt(selectedShirt), [selectedShirt]);
 
-  const shirtSrc = side === "front"
-    ? (baseVariant?.front || baseVariant?.back || "")
-    : (baseVariant?.back || baseVariant?.front || "");
+  const shirtSrc = getVariantDisplayImage(baseVariant, side, "main");
   const activeSvgRaw = side === "front"
     ? (svgCache[designId]?.front || svgCache[designId]?.back || "")
     : (svgCache[designId]?.back || svgCache[designId]?.front || "");
@@ -2380,7 +2423,7 @@ export default function App() {
     };
 
     const activeSrc = shirtSrc;
-    const alternateSrc = side === "front" ? (baseVariant?.back || "") : (baseVariant?.front || "");
+    const alternateSrc = getVariantDisplayImage(baseVariant, side === "front" ? "back" : "front", "main");
 
     primeShirtImage(activeSrc, { activate: true });
     primeShirtImage(alternateSrc, { activate: false });
