@@ -389,6 +389,101 @@ function formatYen(value) {
   return `¥${num.toLocaleString("ja-JP")}`;
 }
 
+function OrderLinePreviewWatermark({ line, shirts, svgCache }) {
+  const shirt = shirts.find((item) => item.code === line.shirtCode);
+  const variant = shirt?.variants?.[line.fit] || getBaseVariantForShirt(shirt);
+  const shirtBackSrc = getVariantDisplayImage(variant, "back", "main");
+  const rawBackSvg = svgCache?.[line.designId]?.back || svgCache?.[line.designId]?.front || "";
+  const inkPreset = getInkPresetByValue(line.inkColor, line.inkColorHex);
+  const designColor = line.inkColorHex || inkPreset?.color || "#111111";
+  const designBackSrc = rawBackSvg
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(forceSingleColorSvg(rawBackSvg, designColor))}`
+    : "";
+  const placementBack = line.designId ? buildPlacementStateFromDesignsData(line.designId, line.fit || "M")?.back : null;
+
+  if (!shirtBackSrc && !designBackSrc) return null;
+
+  const designLeft = `${(placementBack?.x ?? 50) + 28}%`;
+  const designTop = `${placementBack?.y ?? 34}%`;
+  const designWidth = `${Math.max(24, Math.min(96, (placementBack?.widthCm ?? 28) * 2.1))}%`;
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+        pointerEvents: "none",
+        borderRadius: 16,
+        background: "#fff",
+        zIndex: 0,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transform: "translate(28%, -2%) scale(1.22)",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: "92%",
+            maxWidth: 520,
+            flexShrink: 0,
+            overflow: "hidden",
+          }}
+        >
+          {shirtBackSrc ? (
+            <img
+              src={shirtBackSrc}
+              alt=""
+              style={{
+                width: "100%",
+                height: "auto",
+                objectFit: "contain",
+                display: "block",
+                opacity: 0.28,
+              }}
+            />
+          ) : null}
+
+          {designBackSrc ? (
+            <img
+              src={designBackSrc}
+              alt=""
+              style={{
+                position: "absolute",
+                left: designLeft,
+                top: designTop,
+                width: designWidth,
+                height: "auto",
+                transform: "translate(-50%, -50%)",
+                opacity: 0.48,
+                objectFit: "contain",
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          borderRadius: 16,
+          background: `linear-gradient(to right, ${hexToRgba(designColor, 0.32)} 0%, ${hexToRgba(designColor, 0.18)} 22%, ${hexToRgba(designColor, 0.08)} 38%, ${hexToRgba(designColor, 0.03)} 46%, ${hexToRgba(designColor, 0)} 50%, ${hexToRgba(designColor, 0)} 100%)`,
+        }}
+      />
+    </div>
+  );
+}
+
 function OrderPanel({
   compact,
   isMobile,
@@ -404,6 +499,7 @@ function OrderPanel({
   currentSelectionLabel,
   designs,
   shirts,
+  svgCache,
 }) {
   const updateField = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -555,14 +651,16 @@ function OrderPanel({
             const lineTint = inkPreset ? hexToRgba(inkPreset.color, 0.22) : "#fff";
             const inkFieldTint = inkPreset ? hexToRgba(inkPreset.color, 0.34) : "#fff";
             return (
-              <div key={line.id} style={{ border: "1px solid #e7e5e4", borderRadius: 16, padding: compact ? 10 : 12, background: lineTint }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontWeight: 800 }}>明細 {index + 1}</div>
-                  <IconButton title="この明細を削除" ariaLabel="この明細を削除" compact={compact} onClick={() => removeLine(line.id)}>
-                    <Trash2 size={16} />
-                  </IconButton>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+              <div key={line.id} style={{ position: "relative", border: "1px solid #e7e5e4", borderRadius: 16, padding: compact ? 10 : 12, background: lineTint, overflow: "hidden", isolation: "isolate" }}>
+                <OrderLinePreviewWatermark line={line} shirts={shirts} svgCache={svgCache} />
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ fontWeight: 800 }}>明細 {index + 1}</div>
+                    <IconButton title="この明細を削除" ariaLabel="この明細を削除" compact={compact} onClick={() => removeLine(line.id)}>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <div>
                     <label style={labelStyle()}>デザイン名</label>
                     <select value={line.designId} onChange={(e) => updateLine(line.id, "designId", e.target.value)} style={inputStyle(compact)}>
@@ -610,6 +708,7 @@ function OrderPanel({
                   </div>
                 </div>
               </div>
+            </div>
             );
           })}
         </div>
@@ -3506,6 +3605,7 @@ export default function App() {
             currentSelectionLabel={currentSelectionLabel}
             designs={designs}
             shirts={shirts}
+            svgCache={svgCache}
           />
         ) : (
           <div
