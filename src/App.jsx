@@ -550,7 +550,21 @@ function OrderPanel({
   };
 
   return (
-    <div style={{ display: "grid", gap: isTablet ? 16 : 24, minWidth: 0 }}>
+    <>
+      <style>{`
+        @page { size: A4 portrait; margin: 10mm; }
+        @media print {
+          html, body { background: #ffffff !important; }
+          body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          [data-print-hide="true"] { display: none !important; }
+          [data-print-only="true"] { display: block !important; }
+        }
+        @media screen {
+          [data-print-only="true"] { display: none !important; }
+        }
+      `}</style>
+      <div data-print-hide="true" style={{ display: "grid", gap: isTablet ? 16 : 24, minWidth: 0 }}>
+
       <div style={panelStyle(compact)}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
           <div style={{ minWidth: 0 }}>
@@ -603,7 +617,7 @@ function OrderPanel({
             >
               <span>BASEで注文する</span>
             </button>
-            <IconButton title="印刷" ariaLabel="発注書を印刷" compact={compact} onClick={() => window.print()}>
+            <IconButton title="印刷用レイアウトで印刷" ariaLabel="印刷用レイアウトで印刷" compact={compact} onClick={() => window.print()}>
               <Printer size={18} />
             </IconButton>
           </div>
@@ -650,6 +664,15 @@ function OrderPanel({
             const inkPreset = getInkPresetByValue(line.inkColor, line.inkColorHex);
             const lineTint = inkPreset ? hexToRgba(inkPreset.color, 0.22) : "#fff";
             const inkFieldTint = inkPreset ? hexToRgba(inkPreset.color, 0.34) : "#fff";
+            const selectedDesign = designs.find((design) => design.id === line.designId) || null;
+            const selectedShirt = shirts.find((shirt) => shirt.code === line.shirtCode) || null;
+            const staticFieldStyle = {
+              ...inputStyle(compact),
+              background: "#fafaf9",
+              display: "flex",
+              alignItems: "center",
+              fontWeight: 700,
+            };
             return (
               <div key={line.id} style={{ position: "relative", border: "1px solid #e7e5e4", borderRadius: 16, padding: compact ? 10 : 12, background: lineTint, overflow: "hidden", isolation: "isolate" }}>
                 <OrderLinePreviewWatermark line={line} shirts={shirts} svgCache={svgCache} />
@@ -663,32 +686,19 @@ function OrderPanel({
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <div>
                     <label style={labelStyle()}>デザイン名</label>
-                    <select value={line.designId} onChange={(e) => updateLine(line.id, "designId", e.target.value)} style={inputStyle(compact)}>
-                      <option value="">選択してください</option>
-                      {designs.map((design) => <option key={design.id} value={design.id}>{design.name}</option>)}
-                    </select>
+                    <div style={staticFieldStyle}>{selectedDesign?.name || line.designId || "-"}</div>
                   </div>
                   <div>
                     <label style={labelStyle()}>Tシャツカラー</label>
-                    <select value={line.shirtCode} onChange={(e) => updateLine(line.id, "shirtCode", e.target.value)} style={inputStyle(compact)}>
-                      <option value="">選択してください</option>
-                      {shirts.map((shirt) => <option key={shirt.code} value={shirt.code}>{shirt.code} / {shirt.name}</option>)}
-                    </select>
+                    <div style={staticFieldStyle}>{selectedShirt ? `${selectedShirt.code} / ${selectedShirt.name}` : (line.shirtCode || "-")}</div>
                   </div>
                   <div>
                     <label style={labelStyle()}>インクカラー</label>
-                    <input
-                      value={line.inkColor}
-                      onChange={(e) => updateLine(line.id, "inkColor", e.target.value)}
-                      style={{ ...inputStyle(compact), background: inkFieldTint }}
-                      placeholder="インク名"
-                    />
+                    <div style={{ ...staticFieldStyle, background: inkFieldTint }}>{line.inkColor || "-"}</div>
                   </div>
                   <div>
                     <label style={labelStyle()}>サイズ</label>
-                    <select value={line.fit} onChange={(e) => updateLine(line.id, "fit", e.target.value)} style={inputStyle(compact)}>
-                      {ALL_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-                    </select>
+                    <div style={staticFieldStyle}>{line.fit || "-"}</div>
                   </div>
                   <div>
                     <label style={labelStyle()}>枚数</label>
@@ -744,6 +754,119 @@ function OrderPanel({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+      </div>
+      <OrderPrintDocument draft={draft} designs={designs} shirts={shirts} svgCache={svgCache} />
+    </>
+  );
+}
+
+function OrderPrintDocument({ draft, designs, shirts, svgCache }) {
+  const lines = Array.isArray(draft?.lines) ? draft.lines : [];
+  const subtotal = lines.reduce((sum, line) => sum + (Number(line.qty) || 0) * (Number(line.unitPrice) || 0), 0);
+  const total = subtotal;
+
+  return (
+    <div data-print-only="true" style={{ display: "none" }}>
+      <div
+        style={{
+          width: "190mm",
+          margin: "0 auto",
+          padding: "8mm 0",
+          color: "#1f2937",
+          fontFamily: "sans-serif",
+        }}
+      >
+        <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "grid", gap: 4 }}>
+              <img
+                src="/title.svg"
+                alt="アンロシェカスタムTメーカー"
+                style={{
+                  display: "block",
+                  width: 150,
+                  height: "auto",
+                }}
+              />
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", paddingLeft: 2 }}>発注明細書</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            発注日: {draft?.orderDate || "-"}　お客様名: {draft?.customerName || "-"}　電話: {draft?.phone || "-"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            住所: {draft?.address || "-"}　お渡し予定日: {draft?.deliveryDate || "-"}　支払い状況: {draft?.paymentStatus || "-"}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {lines.map((line, index) => {
+            const amount = (Number(line.qty) || 0) * (Number(line.unitPrice) || 0);
+            const inkPreset = getInkPresetByValue(line.inkColor, line.inkColorHex);
+            const tint = inkPreset ? hexToRgba(inkPreset.color, 0.22) : "#ffffff";
+
+            return (
+              <div
+                key={line.id || index}
+                style={{
+                  position: "relative",
+                  minHeight: 64,
+                  border: "1px solid #d6d3d1",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: tint,
+                  pageBreakInside: "avoid",
+                  breakInside: "avoid",
+                }}
+              >
+                <OrderLinePreviewWatermark line={line} designs={designs} shirts={shirts} svgCache={svgCache} />
+                <div style={{ position: "relative", zIndex: 1, padding: "8px 10px", display: "grid", gap: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                    <div style={{ fontWeight: 800, fontSize: 12 }}>明細 {index + 1}</div>
+                    <div style={{ fontWeight: 800, fontSize: 12 }}>{formatYen(amount)}</div>
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.3fr 1.1fr 1.1fr 0.7fr 0.7fr 0.8fr",
+                      gap: 8,
+                      fontSize: 10.5,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    <div><div style={{ color: "#6b7280" }}>デザイン</div><div>{line.designName || line.designId || "-"}</div></div>
+                    <div><div style={{ color: "#6b7280" }}>Tシャツ</div><div>{line.shirtCode ? `${line.shirtCode} / ${line.shirtName || ""}` : "-"}</div></div>
+                    <div><div style={{ color: "#6b7280" }}>インク</div><div>{line.inkColor || "-"}</div></div>
+                    <div><div style={{ color: "#6b7280" }}>サイズ</div><div>{line.fit || "-"}</div></div>
+                    <div><div style={{ color: "#6b7280" }}>枚数</div><div>{line.qty || "-"}</div></div>
+                    <div><div style={{ color: "#6b7280" }}>単価</div><div>{formatYen(Number(line.unitPrice) || 0)}</div></div>
+                  </div>
+                  {line.memo ? (
+                    <div style={{ fontSize: 10, color: "#374151" }}>
+                      <span style={{ color: "#6b7280" }}>メモ: </span>{line.memo}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #e5e7eb", borderRadius: 10, padding: "8px 10px", fontSize: 11 }}>
+            <span>小計</span><strong>{formatYen(subtotal)}</strong>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", border: "1px solid #d1d5db", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 800 }}>
+            <span>合計</span><strong>{formatYen(total)}</strong>
+          </div>
+          {draft?.note ? (
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "8px 10px", fontSize: 10.5, whiteSpace: "pre-wrap" }}>
+              <div style={{ color: "#6b7280", marginBottom: 4 }}>備考</div>
+              <div>{draft.note}</div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
