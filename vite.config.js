@@ -18,7 +18,7 @@ export default defineConfig({
         name: 'アンロシェカスタムTメーカー',
         short_name: 'Tメーカー',
         description: 'アンロシェカスタムTメーカー',
-        theme_color: '#41b4bb',
+        theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
