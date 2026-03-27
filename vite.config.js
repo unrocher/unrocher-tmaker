@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: [
         'favicon.svg',
-        'apple-touch-icon.png',
+        'apple-touch-icon-v2.png',
         'icons/icon-192-v2.png',
         'icons/icon-512-v2.png',
         'icons/icon-512-maskable-v2.png',
