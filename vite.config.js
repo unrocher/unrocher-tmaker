@@ -10,9 +10,9 @@ export default defineConfig({
       includeAssets: [
         'favicon.svg',
         'apple-touch-icon.png',
-        'icons/icon-192.png',
-        'icons/icon-512.png',
-        'icons/icon-512-maskable.png',
+        'icons/icon-192-v2.png',
+        'icons/icon-512-v2.png',
+        'icons/icon-512-maskable-v2.png',
       ],
       manifest: {
         name: 'アンロシェカスタムTメーカー',
