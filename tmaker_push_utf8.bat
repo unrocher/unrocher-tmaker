@@ -1,7 +1,18 @@
 @echo off
 chcp 65001 >nul
 title Tmaker Push
-cd /d G:\unrocher\tshirt-simulator
+
+rem ===== プロジェクトフォルダ =====
+cd /d D:\unrocher\tshirt-simulator
+if errorlevel 1 (
+  echo.
+  echo プロジェクトフォルダへ移動できませんでした。
+  echo パスを確認してください:
+  echo D:\unrocher\tshirt-simulator
+  echo.
+  pause
+  exit /b 1
+)
 
 set GIT_USERNAME=
 set GIT_USEREMAIL=
@@ -38,15 +49,21 @@ if "%MSG%"=="" set MSG=update
 
 echo.
 echo [2/3] Git commit...
+git diff --cached --quiet
+if not errorlevel 1 (
+  echo 変更がありません。commit はスキップします。
+  goto PUSH_STEP
+)
+
 git commit -m "%MSG%"
 if errorlevel 1 (
   echo.
-  echo commit できませんでした。
-  echo 変更が無いか、別のエラーの可能性があります。
+  echo commit でエラーが出ました。
   pause
   exit /b 1
 )
 
+:PUSH_STEP
 echo.
 echo [3/3] Git push...
 git push
