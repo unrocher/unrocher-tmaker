@@ -37,10 +37,8 @@ const PLACEMENT_STORAGE_KEY = "anrocher-design-placements-v7";
 const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
-const MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY = "anrocher-mobile-right-panel-guide-v1";
 const MAX_FAVORITES = 30;
 const APP_VERSION = "V04.2.24-touch-stable-simple-export";
-const DISPLAY_VERSION = (APP_VERSION.match(/v?\d+(?:\.\d+)*/i)?.[0] ?? APP_VERSION);
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -610,13 +608,7 @@ function OrderPanel({
 
       <div style={panelStyle(compact)}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
-          <div
-              style={{
-                minWidth: 0,
-                pointerEvents: isMobile && isMobileRightPanelOpen ? "none" : "auto",
-                userSelect: isMobile && isMobileRightPanelOpen ? "none" : undefined,
-              }}
-            >
+          <div style={{ minWidth: 0 }}>
             <img
               src="/title.svg"
               alt="アンロシェカスタムTメーカー"
@@ -2536,15 +2528,6 @@ export default function App() {
   const [interactionMode, setInteractionMode] = useState("pan");
   const [isEditMode, setIsEditMode] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isMobileRightPanelOpen, setIsMobileRightPanelOpen] = useState(false);
-  const [showMobileRightPanelGuide, setShowMobileRightPanelGuide] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY) !== "seen";
-    } catch {
-      return false;
-    }
-  });
 
   const notifyStatus = (message, options = {}) => {
     const { forceAlert = false } = options || {};
@@ -2599,48 +2582,6 @@ export default function App() {
   const layoutColumns = isTablet ? "1fr" : "minmax(0, 1fr) minmax(340px, 420px)";
   const sizeColumns = isMobile ? 4 : 5;
   const designColumns = isMobile ? 2 : isTablet ? 2 : 3;
-
-  useEffect(() => {
-    if (!isMobile || typeof document === "undefined") return undefined;
-
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevBodyOverscroll = document.body.style.overscrollBehavior;
-
-    if (isMobileRightPanelOpen) {
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.overscrollBehavior = "none";
-    }
-
-    return () => {
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.overflow = prevBodyOverflow;
-      document.body.style.overscrollBehavior = prevBodyOverscroll;
-    };
-  }, [isMobile, isMobileRightPanelOpen]);
-
-  useEffect(() => {
-    if (!isMobile || appView !== "maker") return;
-    if (!showMobileRightPanelGuide) return;
-    if (isMobileRightPanelOpen) {
-      setShowMobileRightPanelGuide(false);
-      try {
-        window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-      } catch {}
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setShowMobileRightPanelGuide(false);
-      try {
-        window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-      } catch {}
-    }, 4200);
-
-    return () => window.clearTimeout(timer);
-  }, [isMobile, appView, isMobileRightPanelOpen, showMobileRightPanelGuide]);
-
 
   const canEditCurrentSize = EDITABLE_SIZES.includes(fit);
   const canEditActive = canEditCurrentSize && isEditMode;
@@ -2828,7 +2769,6 @@ export default function App() {
     if (!wrap) return;
 
     const handleNativeTouchStart = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (e.touches.length !== 2) return;
       const [t1, t2] = e.touches;
       stopSingleTouchInteraction();
@@ -2842,7 +2782,6 @@ export default function App() {
     };
 
     const handleNativeTouchMove = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (e.touches.length !== 2) return;
       const [t1, t2] = e.touches;
       const currentDistance = getTouchDistance(t1, t2);
@@ -2867,7 +2806,6 @@ export default function App() {
     };
 
     const handleNativeTouchEnd = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (touchRef.current.mode !== "pinch") return;
       if (e.touches.length < 2) {
         touchRef.current.active = false;
@@ -2891,7 +2829,7 @@ export default function App() {
       wrap.removeEventListener("touchend", handleNativeTouchEnd, true);
       wrap.removeEventListener("touchcancel", handleNativeTouchEnd, true);
     };
-  }, [isMobile, isMobileRightPanelOpen, isTouchCapable, zoom]);
+  }, [isTouchCapable, zoom]);
 
   useEffect(() => {
     if (!isTouchCapable) return;
@@ -2940,7 +2878,7 @@ export default function App() {
       canvas.removeEventListener("gesturechange", preventGestureDefault);
       canvas.removeEventListener("gestureend", preventGestureDefault);
     };
-  }, [isTouchCapable, isMobile, isMobileRightPanelOpen]);
+  }, [isTouchCapable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4253,25 +4191,8 @@ export default function App() {
                         height: "auto",
                       }}
                     />
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        marginTop: 8,
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        background: "rgba(65,180,187,0.08)",
-                        border: `1px solid ${UI_BORDER}`,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        color: UI_HEAD,
-                      }}
-                    >
-                      <span style={{ color: UI_SUB }}>{DISPLAY_VERSION}</span>
-                    </div>
                     {isDesignAdjustAuthed && (
-                      <div style={{ fontSize: 11, color: UI_SUB, marginTop: 6 }}>data: {DESIGNS_DATA_VERSION}</div>
+                      <div style={{ fontSize: 11, color: UI_SUB, marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
                     )}
                   </div>
 
@@ -4381,9 +4302,8 @@ export default function App() {
                     position: "relative",
                     background: "#ffffff",
                     borderRadius: compact ? 16 : 20,
-                    padding: 0,
-                    boxShadow: "0 10px 26px rgba(47,59,64,0.08)",
-                    border: `1px solid rgba(65,180,187,0.22)`,
+                    padding: isMobile ? 8 : 12,
+                    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.05)",
                     overflow: "hidden",
                     maxHeight: isTablet ? "none" : "82vh",
                     minWidth: 0,
@@ -4399,7 +4319,7 @@ export default function App() {
                       width: "100%",
                       maxWidth: "100%",
                       display: "block",
-                      borderRadius: compact ? 16 : 20,
+                      borderRadius: 16,
                       background: "#ffffff",
                       cursor: canvasCursor,
                       touchAction: "none",
@@ -4470,7 +4390,6 @@ export default function App() {
                         <div
                           key={favorite.id}
                           style={{
-                            position: "relative",
                             border: `1px solid ${UI_BORDER}`,
                             borderRadius: 12,
                             overflow: "hidden",
@@ -4479,37 +4398,6 @@ export default function App() {
                             minWidth: 0,
                           }}
                         >
-                          <button
-                            type="button"
-                            aria-label="お気に入りを削除"
-                            title="お気に入りを削除"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeFavorite(favorite.id);
-                            }}
-                            style={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              width: 26,
-                              height: 26,
-                              borderRadius: 999,
-                              border: `1px solid ${UI_BORDER_STRONG}`,
-                              background: "rgba(255,255,255,0.92)",
-                              color: UI_HEAD,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              zIndex: 2,
-                              boxShadow: "0 4px 10px rgba(47,59,64,0.12)",
-                              padding: 0,
-                              lineHeight: 1,
-                            }}
-                          >
-                            <X size={14} />
-                          </button>
-
                           <button
                             type="button"
                             onClick={() => applyFavorite(favorite)}
@@ -4577,6 +4465,21 @@ export default function App() {
                               </div>
                             </div>
                           </button>
+
+                          <div style={{ padding: "0 8px 8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => removeFavorite(favorite.id)}
+                              style={{
+                                ...buttonStyle(false, true),
+                                width: "100%",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                              }}
+                            >
+                              削除
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -4622,159 +4525,10 @@ export default function App() {
               </div>
             </div>
 
-            {!isMobile && (
-              <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
-            )}
+            <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
           </div>
 
         )}
-      {isMobile && appView === "maker" && (
-        <>
-          <div
-            onClick={() => setIsMobileRightPanelOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.28)",
-              zIndex: 30,
-              opacity: isMobileRightPanelOpen ? 1 : 0,
-              pointerEvents: isMobileRightPanelOpen ? "auto" : "none",
-              transition: "opacity 220ms ease",
-            }}
-          />
-
-          <div
-            style={{
-              position: "fixed",
-              top: "calc(env(safe-area-inset-top) + 10px)",
-              bottom: "calc(env(safe-area-inset-bottom) + 10px)",
-              right: 10,
-              width: "min(360px, calc(100vw - 28px))",
-              zIndex: 40,
-              transition: "transform 320ms cubic-bezier(.22,.8,.24,1), opacity 220ms ease",
-              overscrollBehavior: "contain",
-              transform: isMobileRightPanelOpen ? "translateX(0)" : "translateX(calc(100% + 18px))",
-              opacity: isMobileRightPanelOpen ? 1 : 0,
-              pointerEvents: isMobileRightPanelOpen ? "auto" : "none",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                overflowY: "auto",
-                overflowX: "hidden",
-                paddingRight: 4,
-                boxSizing: "border-box",
-                overscrollBehavior: "contain",
-                WebkitOverflowScrolling: "touch",
-                touchAction: "pan-y",
-              }}
-              onTouchStartCapture={(e) => e.stopPropagation()}
-              onTouchMoveCapture={(e) => e.stopPropagation()}
-              onPointerDownCapture={(e) => e.stopPropagation()}
-            >
-              <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); setIsMobileRightPanelOpen(false); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
-            </div>
-          </div>
-
-          {showMobileRightPanelGuide && !isMobileRightPanelOpen && (
-            <div
-              style={{
-                position: "fixed",
-                right: 62,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 44,
-                maxWidth: 148,
-                padding: "10px 12px",
-                borderRadius: 14,
-                background: "rgba(255,255,255,0.96)",
-                color: UI_HEAD,
-                border: `1px solid ${UI_BORDER_STRONG}`,
-                boxShadow: "0 10px 28px rgba(47,59,64,0.12)",
-                fontSize: 12,
-                fontWeight: 800,
-                lineHeight: 1.45,
-                pointerEvents: "none",
-              }}
-            >
-              ここから設定できます
-              <div
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  right: -6,
-                  width: 12,
-                  height: 12,
-                  background: "rgba(255,255,255,0.96)",
-                  borderRight: `1px solid ${UI_BORDER_STRONG}`,
-                  borderBottom: `1px solid ${UI_BORDER_STRONG}`,
-                  transform: "translateY(-50%) rotate(-45deg)",
-                }}
-              />
-            </div>
-          )}
-
-          <button
-            type="button"
-            aria-label={isMobileRightPanelOpen ? "設定パネルを閉じる" : "設定パネルを開く"}
-            title={isMobileRightPanelOpen ? "設定を閉じる" : "設定を開く"}
-            style={{
-              position: "fixed",
-              right: -20,
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 45,
-              width: 68,
-              height: 192,
-              padding: 0,
-              border: "none",
-              background: "transparent",
-              boxShadow: "none",
-              overflow: "visible",
-              cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
-            }}
-            onClick={() => {
-              setShowMobileRightPanelGuide(false);
-              try {
-                window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-              } catch {}
-              setIsMobileRightPanelOpen((prev) => !prev);
-            }}
-          >
-            <svg
-              viewBox="0 0 86.99 167.99"
-              aria-hidden="true"
-              style={{
-                width: "100%",
-                height: "100%",
-                display: "block",
-                overflow: "visible",
-                opacity: isMobileRightPanelOpen ? 0.96 : 1,
-              }}
-            >
-              <path
-                d="M62.68,11.31v21.05c0,4.79-2.48,9.24-6.56,11.76l-16.39,10.1c-4.08,2.52-6.56,6.97-6.56,11.76v37.51c0,4.79,2.48,9.24,6.56,11.76l16.39,10.1c4.08,2.52,6.56,6.97,6.56,11.76v24.89H86.99V11.31Z"
-                fill="rgba(255,255,255,0.96)"
-                stroke="rgba(65,180,187,0.18)"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.2"
-              />
-              <path
-                d="M70.6 44.5c0-2.2 1.8-4 4-4h3.2c2.2 0 4 1.8 4 4v79c0 2.2-1.8 4-4 4h-3.2c-2.2 0-4-1.8-4-4z"
-                fill="rgba(65,180,187,0.12)"
-              />
-              <path
-                d="M44.8 60.8c0-1 .8-1.8 1.8-1.8h1.6c1 0 1.8.8 1.8 1.8v46.4c0 1-.8 1.8-1.8 1.8h-1.6c-1 0-1.8-.8-1.8-1.8z"
-                fill={isMobileRightPanelOpen ? "rgba(65,180,187,0.84)" : "rgba(65,180,187,0.72)"}
-              />
-            </svg>
-          </button>
-        </>
-      )}
       {isHelpOpen && <HelpModal open={isHelpOpen} onClose={() => setIsHelpOpen(false)} compact={compact} isMobile={isMobile} />}
       </div>
     </div>

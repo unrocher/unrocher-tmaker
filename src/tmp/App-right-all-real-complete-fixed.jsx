@@ -37,10 +37,8 @@ const PLACEMENT_STORAGE_KEY = "anrocher-design-placements-v7";
 const FAVORITES_STORAGE_KEY = "anrocher-favorites-v1";
 const ORDER_STORAGE_KEY = "anrocher-order-drafts-v1";
 const DESIGN_ADJUST_AUTH_STORAGE_KEY = "anrocher-design-adjust-auth-v1";
-const MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY = "anrocher-mobile-right-panel-guide-v1";
 const MAX_FAVORITES = 30;
 const APP_VERSION = "V04.2.24-touch-stable-simple-export";
-const DISPLAY_VERSION = (APP_VERSION.match(/v?\d+(?:\.\d+)*/i)?.[0] ?? APP_VERSION);
 const DESIGNS_DATA_VERSION = "from-generate-designs-current";
 
 /**
@@ -58,20 +56,6 @@ const HANDLE_HIT_SIZE = 52;
 const MIN_WIDTH_CM = 5;
 const MAX_WIDTH_CM = 45;
 const HIGH_RES_EXPORT_SIZE = 3000;
-
-const UI_BG_GRADIENT = "linear-gradient(180deg, #e7f6f8 0%, #eff9fa 36%, #f7fbfb 64%, #fffdfa 100%)";
-const UI_PANEL = "rgba(255,255,255,0.98)";
-const UI_PANEL_SOFT = "linear-gradient(180deg, #f8fdfe 0%, #f2fafb 45%, #ffffff 100%)";
-const UI_PANEL_STAGE = "#eef5f6";
-const UI_BORDER = "rgba(65,180,187,0.18)";
-const UI_BORDER_STRONG = "rgba(65,180,187,0.28)";
-const UI_TEXT = "#2f3b40";
-const UI_HEAD = "#2e6670";
-const UI_SUB = "#6b7e84";
-const UI_BLUE = "#41b4bb";
-const UI_BLUE_DEEP = "#2f8f98";
-const UI_PINK = "#eac8bd";
-
 
 function forceSingleColorSvg(svgText, color) {
   if (!svgText) return "";
@@ -186,14 +170,10 @@ async function downloadCanvas(canvas, fileName) {
 
 function panelStyle(compact = false) {
   return {
-    background: UI_PANEL,
-    borderRadius: compact ? 18 : 22,
+    background: "#ffffff",
+    borderRadius: compact ? 16 : 20,
     padding: compact ? 12 : 16,
-    boxShadow: compact
-      ? "0 10px 22px rgba(47,59,64,0.07)"
-      : "0 14px 32px rgba(47,59,64,0.08)",
-    border: `1px solid ${UI_BORDER}`,
-    backdropFilter: "blur(4px)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
     minWidth: 0,
   };
 }
@@ -201,22 +181,19 @@ function panelStyle(compact = false) {
 
 function groupedSectionStyle(compact = false) {
   return {
-    border: `1px solid ${UI_BORDER}`,
-    borderRadius: compact ? 16 : 18,
+    border: "1px solid #ece7e1",
+    borderRadius: compact ? 14 : 16,
     padding: compact ? 12 : 14,
-    background: UI_PANEL_SOFT,
+    background: "#fffdfa",
     minWidth: 0,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
   };
 }
 
 function labelStyle() {
   return {
     display: "block",
-    fontSize: 13,
-    fontWeight: 800,
-    letterSpacing: "0.02em",
-    color: UI_HEAD,
+    fontSize: 14,
+    fontWeight: 700,
     marginBottom: 8,
   };
 }
@@ -224,25 +201,19 @@ function labelStyle() {
 function buttonStyle(active = false, compact = false) {
   return {
     padding: compact ? "9px 11px" : "10px 14px",
-    borderRadius: 14,
-    border: active ? `1px solid ${UI_BLUE}` : `1px solid ${UI_BORDER}`,
-    background: active
-      ? `linear-gradient(180deg, ${UI_BLUE} 0%, ${UI_BLUE_DEEP} 100%)`
-      : "rgba(255,255,255,0.9)",
+    borderRadius: 12,
+    border: active ? "2px solid #111" : "1px solid #d6d3d1",
+    background: active ? "#f5f5f4" : "#fff",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 700,
     fontSize: compact ? 13 : 14,
-    color: active ? "#ffffff" : UI_TEXT,
-    WebkitTextFillColor: active ? "#ffffff" : UI_TEXT,
+    color: "#1f2937",
+    WebkitTextFillColor: "#1f2937",
     opacity: 1,
     appearance: "none",
     WebkitAppearance: "none",
     lineHeight: 1.2,
     boxSizing: "border-box",
-    boxShadow: active
-      ? "0 8px 18px rgba(65,180,187,0.24)"
-      : "0 2px 8px rgba(47,59,64,0.04)",
-    transition: "background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease",
   };
 }
 
@@ -250,13 +221,10 @@ function inputStyle(compact = false) {
   return {
     width: "100%",
     padding: compact ? "9px 11px" : "10px 12px",
-    borderRadius: 14,
-    border: `1px solid ${UI_BORDER}`,
-    background: "#ffffff",
-    color: UI_TEXT,
+    borderRadius: 12,
+    border: "1px solid #d6d3d1",
     boxSizing: "border-box",
     minWidth: 0,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
   };
 }
 
@@ -276,8 +244,8 @@ function IconButton({ title, onClick, compact = false, children, ariaLabel, acti
         justifyContent: "center",
         flexShrink: 0,
         overflow: "visible",
-        color: active ? "#ffffff" : UI_TEXT,
-        WebkitTextFillColor: active ? "#ffffff" : UI_TEXT,
+        color: "#1f2937",
+        WebkitTextFillColor: "#1f2937",
       }}
       onClick={onClick}
     >
@@ -459,7 +427,7 @@ function OrderLinePreviewWatermark({ line, shirts, svgCache }) {
         overflow: "hidden",
         pointerEvents: "none",
         borderRadius: 16,
-        background: "#ffffff",
+        background: "#fff",
         zIndex: 0,
       }}
     >
@@ -610,13 +578,7 @@ function OrderPanel({
 
       <div style={panelStyle(compact)}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
-          <div
-              style={{
-                minWidth: 0,
-                pointerEvents: isMobile && isMobileRightPanelOpen ? "none" : "auto",
-                userSelect: isMobile && isMobileRightPanelOpen ? "none" : undefined,
-              }}
-            >
+          <div style={{ minWidth: 0 }}>
             <img
               src="/title.svg"
               alt="アンロシェカスタムTメーカー"
@@ -627,7 +589,7 @@ function OrderPanel({
                 height: "auto",
               }}
             />
-            <div style={{ fontSize: 12, color: UI_SUB, marginTop: 6 }}>発注書</div>
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 6 }}>発注書</div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
@@ -672,7 +634,7 @@ function OrderPanel({
           </div>
         </div>
 
-        <div style={{ ...inputStyle(compact), marginBottom: 14, background: UI_PANEL_SOFT, color: UI_SUB, fontWeight: 700 }}>
+        <div style={{ ...inputStyle(compact), marginBottom: 14, background: "#fafaf9", color: "#57534e", fontWeight: 700 }}>
           現在の選択内容: {currentSelectionLabel}
         </div>
 
@@ -717,13 +679,13 @@ function OrderPanel({
             const selectedShirt = shirts.find((shirt) => shirt.code === line.shirtCode) || null;
             const staticFieldStyle = {
               ...inputStyle(compact),
-              background: UI_PANEL_SOFT,
+              background: "#fafaf9",
               display: "flex",
               alignItems: "center",
               fontWeight: 700,
             };
             return (
-              <div key={line.id} style={{ position: "relative", border: `1px solid ${UI_BORDER}`, borderRadius: 16, padding: compact ? 10 : 12, background: lineTint, overflow: "hidden", isolation: "isolate" }}>
+              <div key={line.id} style={{ position: "relative", border: "1px solid #e7e5e4", borderRadius: 16, padding: compact ? 10 : 12, background: lineTint, overflow: "hidden", isolation: "isolate" }}>
                 <OrderLinePreviewWatermark line={line} shirts={shirts} svgCache={svgCache} />
                 <div style={{ position: "relative", zIndex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 10 }}>
@@ -755,11 +717,11 @@ function OrderPanel({
                   </div>
                   <div>
                     <label style={labelStyle()}>単価</label>
-                    <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, display: "flex", alignItems: "center", fontWeight: 700 }}>¥3,800</div>
+                    <div style={{ ...inputStyle(compact), background: "#fafaf9", display: "flex", alignItems: "center", fontWeight: 700 }}>¥3,800</div>
                   </div>
                   <div>
                     <label style={labelStyle()}>金額</label>
-                    <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, display: "flex", alignItems: "center", fontWeight: 700 }}>{formatYen(amount)}</div>
+                    <div style={{ ...inputStyle(compact), background: "#fafaf9", display: "flex", alignItems: "center", fontWeight: 700 }}>{formatYen(amount)}</div>
                   </div>
                   <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
                     <label style={labelStyle()}>行メモ</label>
@@ -778,8 +740,8 @@ function OrderPanel({
         </div>
 
         <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
-          <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700 }}><span>小計</span><span>{formatYen(subtotal)}</span></div>
-          <div style={{ ...inputStyle(compact), background: UI_BG_GRADIENT, display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 800 }}><span>合計</span><span>{formatYen(total)}</span></div>
+          <div style={{ ...inputStyle(compact), background: "#fafaf9", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700 }}><span>小計</span><span>{formatYen(subtotal)}</span></div>
+          <div style={{ ...inputStyle(compact), background: "#f5f5f4", display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 800 }}><span>合計</span><span>{formatYen(total)}</span></div>
         </div>
 
         <div>
@@ -791,12 +753,12 @@ function OrderPanel({
       <div style={panelStyle(compact)}>
         <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 10 }}>保存済み発注書</div>
         <div style={{ display: "grid", gap: 8 }}>
-          {savedOrders.length === 0 && <div style={{ fontSize: 13, color: UI_SUB }}>まだ保存された発注書はありません。</div>}
+          {savedOrders.length === 0 && <div style={{ fontSize: 13, color: "#78716c" }}>まだ保存された発注書はありません。</div>}
           {savedOrders.map((item) => (
-            <div key={item.id} style={{ border: `1px solid ${UI_BORDER}`, borderRadius: 14, padding: 12, display: "grid", gap: 8 }}>
+            <div key={item.id} style={{ border: "1px solid #e7e5e4", borderRadius: 14, padding: 12, display: "grid", gap: 8 }}>
               <div style={{ fontWeight: 800 }}>"発注書"</div>
-              <div style={{ fontSize: 12, color: UI_SUB }}>{item.customerName || "お客様名未入力"} / {item.orderDate || "日付未入力"}</div>
-              <div style={{ fontSize: 12, color: UI_SUB }}>明細 {item.lines?.length || 0} 件</div>
+              <div style={{ fontSize: 12, color: "#78716c" }}>{item.customerName || "お客様名未入力"} / {item.orderDate || "日付未入力"}</div>
+              <div style={{ fontSize: 12, color: "#57534e" }}>明細 {item.lines?.length || 0} 件</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" style={buttonStyle(false, compact)} onClick={() => loadDraft(item)}>読み込む</button>
                 <button type="button" style={{ ...buttonStyle(false, compact), border: "1px solid #fca5a5", background: "#fff5f5" }} onClick={() => deleteDraft(item.id)}>削除</button>
@@ -823,7 +785,7 @@ function OrderPrintDocument({ draft, designs, shirts, svgCache }) {
           width: "190mm",
           margin: "0 auto",
           padding: "8mm 0",
-          color: UI_TEXT,
+          color: "#1f2937",
           fontFamily: "sans-serif",
         }}
       >
@@ -862,7 +824,7 @@ function OrderPrintDocument({ draft, designs, shirts, svgCache }) {
                 style={{
                   position: "relative",
                   minHeight: 64,
-                  border: `1px solid ${UI_BORDER}`,
+                  border: "1px solid #d6d3d1",
                   borderRadius: 12,
                   overflow: "hidden",
                   background: tint,
@@ -1315,7 +1277,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: "#ffffff",
+          background: "#fff",
           textAlign: "left",
           cursor: "pointer",
         }}
@@ -1329,16 +1291,16 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
             height: compact ? 40 : 44,
             objectFit: "cover",
             borderRadius: 8,
-            border: `1px solid ${UI_BORDER}`,
-            background: UI_PANEL_SOFT,
+            border: "1px solid #d6d3d1",
+            background: "#fafaf9",
             flexShrink: 0,
           }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: compact ? 13 : 14 }}>{selectedShirt?.code || "-"}</div>
-          <div style={{ fontSize: 11, color: UI_SUB }}>{selectedShirt?.name || "Tシャツカラー"}</div>
+          <div style={{ fontSize: 11, color: "#78716c" }}>{selectedShirt?.name || "Tシャツカラー"}</div>
         </div>
-        <div style={{ fontSize: 11, color: UI_SUB }}>▼</div>
+        <div style={{ fontSize: 11, color: "#57534e" }}>▼</div>
       </button>
 
       {open && (
@@ -1349,8 +1311,8 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
             left: 0,
             right: 0,
             zIndex: 20,
-            background: "#ffffff",
-            border: `1px solid ${UI_BORDER}`,
+            background: "#fff",
+            border: "1px solid #d6d3d1",
             borderRadius: 16,
             boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
             padding: 10,
@@ -1383,7 +1345,7 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
                 }}
                 style={{
                   border: shirt.code === shirtCode ? "2px solid #111" : "1px solid #d6d3d1",
-                  background: "#ffffff",
+                  background: "#fff",
                   borderRadius: 12,
                   padding: 8,
                   cursor: "pointer",
@@ -1402,14 +1364,14 @@ function ShirtPicker({ shirts, shirtCode, setShirtCode, side, compact }) {
                     height: compact ? 38 : 42,
                     objectFit: "cover",
                     borderRadius: 10,
-                    border: `1px solid ${UI_BORDER}`,
-                    background: UI_PANEL_SOFT,
+                    border: "1px solid #d6d3d1",
+                    background: "#fafaf9",
                     flexShrink: 0,
                   }}
                 />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: compact ? 13 : 14 }}>{shirt.code}</div>
-                  <div style={{ fontSize: 12, color: UI_SUB }}>{shirt.name || "Tシャツカラー"}</div>
+                  <div style={{ fontSize: 12, color: "#78716c" }}>{shirt.name || "Tシャツカラー"}</div>
                 </div>
               </button>
             ))}
@@ -1463,13 +1425,13 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                   width: compact ? 112 : 126,
                   minWidth: compact ? 112 : 126,
                   maxWidth: compact ? 112 : 126,
-                  border: active ? `2px solid ${UI_BLUE}` : `1px solid ${UI_BORDER}`,
-                  background: "#ffffff",
+                  border: active ? "2px solid #111" : "1px solid #d6d3d1",
+                  background: "#fff",
                   borderRadius: compact ? 10 : 12,
                   padding: compact ? 5 : 6,
                   cursor: "pointer",
                   display: "block",
-                  boxShadow: active ? "0 8px 18px rgba(65,180,187,0.18)" : "none",
+                  boxShadow: active ? "0 4px 12px rgba(0,0,0,0.08)" : "none",
                   overflow: "hidden",
                 }}
               >
@@ -1479,7 +1441,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                     aspectRatio: "1 / 1",
                     borderRadius: compact ? 8 : 9,
                     border: active ? "1px solid #d6d3d1" : "1px solid #e7e5e4",
-                    background: UI_PANEL_SOFT,
+                    background: "#fafaf9",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1512,7 +1474,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                     bottom: 6,
                     padding: compact ? "5px 6px" : "6px 7px",
                     borderRadius: 8,
-                    background: active ? "rgba(46,102,112,0.92)" : "rgba(47,59,64,0.82)",
+                    background: active ? "rgba(17,17,17,0.92)" : "rgba(17,17,17,0.82)",
                     color: "#fff",
                     fontSize: compact ? 10 : 10.5,
                     fontWeight: 700,
@@ -1564,13 +1526,13 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
             }}
             style={{
               position: "relative",
-              border: active ? `2px solid ${UI_BLUE}` : `1px solid ${UI_BORDER}`,
-              background: "#ffffff",
+              border: active ? "2px solid #111" : "1px solid #d6d3d1",
+              background: "#fff",
               borderRadius: compact ? 10 : 12,
               padding: compact ? 5 : 6,
               cursor: "pointer",
               display: "block",
-              boxShadow: active ? "0 8px 18px rgba(65,180,187,0.18)" : "none",
+              boxShadow: active ? "0 4px 12px rgba(0,0,0,0.08)" : "none",
               overflow: "hidden",
               minWidth: 0,
             }}
@@ -1581,7 +1543,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                 aspectRatio: "1 / 1",
                 borderRadius: compact ? 8 : 9,
                 border: active ? "1px solid #d6d3d1" : "1px solid #e7e5e4",
-                background: UI_PANEL_SOFT,
+                background: "#fafaf9",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -1614,7 +1576,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                 bottom: 6,
                 padding: compact ? "5px 6px" : "6px 7px",
                 borderRadius: 8,
-                background: active ? "rgba(46,102,112,0.92)" : "rgba(47,59,64,0.82)",
+                background: active ? "rgba(17,17,17,0.92)" : "rgba(17,17,17,0.82)",
                 color: "#fff",
                 fontSize: compact ? 10 : 10.5,
                 fontWeight: 700,
@@ -1650,7 +1612,7 @@ function RightDummyBlock({ title, rows = 6, compact = false }) {
               height: 38,
               borderRadius: 10,
               background: i % 2 === 0 ? "#f5f5f4" : "#fafaf9",
-              border: `1px solid ${UI_BORDER}`,
+              border: "1px solid #e7e5e4",
             }}
           />
         ))}
@@ -1709,145 +1671,116 @@ function RightDummyTestPanel({
         }}
       >
         <div style={groupedSectionStyle(compact)}>
-          <SectionHeader
-            title="デザイン選択"
-            open={openSections.designPicker}
-            onToggle={() => toggleSection("designPicker")}
-            collapsible={true}
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 12 }}>デザイン選択</div>
+          <DesignPicker
+            designs={designs}
+            designId={designId}
+            onSelectDesign={onSelectDesign}
+            columns={designColumns}
+            compact={compact}
             isMobile={isMobile}
-            fontSize={isMobile ? 18 : 20}
           />
-          {openSections.designPicker && (
-            <DesignPicker
-              designs={designs}
-              designId={designId}
-              onSelectDesign={onSelectDesign}
-              columns={designColumns}
-              compact={compact}
-              isMobile={isMobile}
-            />
-          )}
         </div>
 
         <div style={groupedSectionStyle(compact)}>
-          <SectionHeader
-            title="Tシャツ設定"
-            open={openSections.shirtSettings}
-            onToggle={() => toggleSection("shirtSettings")}
-            collapsible={true}
-            isMobile={isMobile}
-            fontSize={isMobile ? 18 : 20}
-          />
-          {openSections.shirtSettings && (
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label style={labelStyle()}>カラーコード</label>
-                <ShirtPicker
-                  shirts={shirts}
-                  shirtCode={shirtCode}
-                  setShirtCode={setShirtCode}
-                  side={side}
-                  compact={compact}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle()}>サイズ</label>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                    gap: 8,
-                  }}
-                >
-                  {ALL_SIZES.map((size) => (
-                    <SizeButton
-                      key={size}
-                      size={size}
-                      active={fit === size}
-                      editable={false}
-                      showEditableMark={false}
-                      compact={compact}
-                      onClick={() => setFit(size)}
-                    />
-                  ))}
-                </div>
-              </div>
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 12 }}>Tシャツ設定</div>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label style={labelStyle()}>カラーコード</label>
+              <ShirtPicker
+                shirts={shirts}
+                shirtCode={shirtCode}
+                setShirtCode={setShirtCode}
+                side={side}
+                compact={compact}
+              />
             </div>
-          )}
-        </div>
 
-        <div style={groupedSectionStyle(compact)}>
-          <SectionHeader
-            title="インクカラー（1色）"
-            open={openSections.inkColor}
-            onToggle={() => toggleSection("inkColor")}
-            collapsible={true}
-            isMobile={isMobile}
-            fontSize={isMobile ? 18 : 20}
-          />
-          {openSections.inkColor && (
-            <>
-              <label style={labelStyle()}>プリセット</label>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                {inkPresets.map((ink) => (
-                  <button
-                    key={ink.id}
-                    title={ink.name}
-                    onClick={() => setInkColor(ink.color)}
-                    style={{
-                      minWidth: compact ? 38 : 42,
-                      height: compact ? 38 : 42,
-                      padding: "0 10px",
-                      borderRadius: 999,
-                      background: ink.color,
-                      border:
-                        inkColor.toLowerCase() === ink.color.toLowerCase()
-                          ? "3px solid #111"
-                          : "1px solid #a8a29e",
-                      cursor: "pointer",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                      color: ink.color === "#ffffff" ? "#111" : "transparent",
-                    }}
-                  >
-                    ●
-                  </button>
-                ))}
-              </div>
-
+            <div>
+              <label style={labelStyle()}>サイズ</label>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "56px 1fr",
-                  gap: 10,
-                  alignItems: "center",
-                  minWidth: 0,
+                  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                  gap: 8,
                 }}
               >
-                <div
-                  style={{
-                    width: 50,
-                    height: 42,
-                    border: `1px solid ${UI_BORDER}`,
-                    borderRadius: 8,
-                    background: inkColor,
-                  }}
-                />
-                <div
-                  style={{
-                    ...inputStyle(compact),
-                    background: UI_PANEL_SOFT,
-                    color: UI_HEAD,
-                    display: "flex",
-                    alignItems: "center",
-                    fontWeight: 700,
-                  }}
-                >
-                  {selectedInkName}
-                </div>
+                {ALL_SIZES.map((size) => (
+                  <SizeButton
+                    key={size}
+                    size={size}
+                    active={fit === size}
+                    editable={false}
+                    showEditableMark={false}
+                    compact={compact}
+                    onClick={() => setFit(size)}
+                  />
+                ))}
               </div>
-            </>
-          )}
+            </div>
+          </div>
+        </div>
+
+        <div style={groupedSectionStyle(compact)}>
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 12 }}>インクカラー（1色）</div>
+          <label style={labelStyle()}>プリセット</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            {inkPresets.map((ink) => (
+              <button
+                key={ink.id}
+                title={ink.name}
+                onClick={() => setInkColor(ink.color)}
+                style={{
+                  minWidth: compact ? 38 : 42,
+                  height: compact ? 38 : 42,
+                  padding: "0 10px",
+                  borderRadius: 999,
+                  background: ink.color,
+                  border:
+                    inkColor.toLowerCase() === ink.color.toLowerCase()
+                      ? "3px solid #111"
+                      : "1px solid #a8a29e",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                  color: ink.color === "#ffffff" ? "#111" : "transparent",
+                }}
+              >
+                ●
+              </button>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "56px 1fr",
+              gap: 10,
+              alignItems: "center",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                width: 50,
+                height: 42,
+                border: "1px solid #d6d3d1",
+                borderRadius: 8,
+                background: inkColor,
+              }}
+            />
+            <div
+              style={{
+                ...inputStyle(compact),
+                background: "#fafaf9",
+                color: "#44403c",
+                display: "flex",
+                alignItems: "center",
+                fontWeight: 700,
+              }}
+            >
+              {selectedInkName}
+            </div>
+          </div>
         </div>
 
         <div style={groupedSectionStyle(compact)}>
@@ -1856,7 +1789,7 @@ function RightDummyTestPanel({
             open={openSections.designAdjust}
             onToggle={() => toggleSection("designAdjust")}
             collapsible={true}
-            isMobile={isMobile}
+            isMobile={true}
             fontSize={isMobile ? 18 : 20}
             rightElement={
               <button
@@ -1871,10 +1804,10 @@ function RightDummyTestPanel({
                   fontSize: 11,
                   fontWeight: 700,
                   color: isDesignAdjustAuthed ? "#16a34a" : "#78716c",
-                  border: `1px solid ${UI_BORDER}`,
+                  border: "1px solid #e7e5e4",
                   borderRadius: 999,
                   padding: "4px 8px",
-                  background: UI_PANEL_SOFT,
+                  background: "#fafaf9",
                   cursor: "pointer",
                 }}
               >
@@ -1886,7 +1819,7 @@ function RightDummyTestPanel({
 
           {openSections.designAdjust && (
             <>
-              <div style={{ fontSize: 14, color: UI_SUB, lineHeight: 1.7, marginBottom: 14 }}>
+              <div style={{ fontSize: 14, color: "#57534e", lineHeight: 1.7, marginBottom: 14 }}>
                 ・このセクションは簡易パスワード保護つき
                 <br />
                 ・編集できるのは 120 / M / XXL のみ
@@ -1905,29 +1838,29 @@ function RightDummyTestPanel({
                   minWidth: 0,
                 }}
               >
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   X: {currentPlacement?.x?.toFixed?.(1) ?? 0}%
                 </div>
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   Y: {currentPlacement?.y?.toFixed?.(1) ?? 0}%
                 </div>
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   版幅: {designWidthCm.toFixed(1)}cm
                 </div>
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   身丈: {currentBodyLengthCm}cm
                 </div>
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   身丈比: {widthPercentOfBody.toFixed(1)}%
                 </div>
-                <div style={{ ...inputStyle(compact), background: UI_PANEL_SOFT, color: UI_TEXT, fontWeight: 700 }}>
+                <div style={{ ...inputStyle(compact), background: "#fafaf9", color: "#44403c", fontWeight: 700 }}>
                   種別: {directSaved ? "基準点" : "designs-data / 補間"}
                 </div>
                 <div
                   style={{
                     ...inputStyle(compact),
-                    background: UI_PANEL_SOFT,
-                    color: UI_TEXT,
+                    background: "#fafaf9",
+                    color: "#44403c",
                     fontWeight: 700,
                     gridColumn: isMobile ? "auto" : "1 / -1",
                   }}
@@ -2023,14 +1956,9 @@ function SizeButton({ size, active, editable, showEditableMark = true, onClick, 
 }
 
 function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize, rightElement = null }) {
-  const handleToggle = () => {
-    if (!collapsible) return;
-    onToggle?.();
-  };
-
   return (
     <div
-      onClick={handleToggle}
+      onClick={collapsible ? onToggle : undefined}
       style={{
         fontWeight: 800,
         fontSize,
@@ -2043,45 +1971,10 @@ function SectionHeader({ title, open, onToggle, collapsible, isMobile, fontSize,
         userSelect: "none",
       }}
     >
-      <span style={{ color: UI_HEAD }}>{title}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {rightElement ? (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ display: "flex", alignItems: "center" }}
-          >
-            {rightElement}
-          </div>
-        ) : null}
-        {collapsible && (
-          <button
-            type="button"
-            aria-label={open ? `${title} をたたむ` : `${title} を開く`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggle();
-            }}
-            style={{
-              border: "none",
-              background: "transparent",
-              width: 24,
-              height: 24,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 18,
-              fontWeight: 900,
-              lineHeight: 1,
-              color: UI_TEXT,
-              cursor: "pointer",
-              padding: 0,
-              flexShrink: 0,
-              boxShadow: "none",
-            }}
-          >
-            {open ? "−" : "＋"}
-          </button>
-        )}
+      <span>{title}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {rightElement}
+        {isMobile && collapsible && <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? "−" : "＋"}</span>}
       </div>
     </div>
   );
@@ -2116,12 +2009,12 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
 
   const sectionTextStyle = {
     fontSize: 14,
-    color: UI_SUB,
+    color: "#57534e",
     lineHeight: 1.75,
   };
 
   const cardStyle = {
-    border: `1px solid ${UI_BORDER}`,
+    border: "1px solid #e7e5e4",
     borderRadius: 16,
     background: "#ffffff",
     padding: isMobile ? 14 : 16,
@@ -2215,7 +2108,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
             <div style={{ fontSize: isMobile ? 22 : 26, fontWeight: 900, color: "#1c1917", marginTop: 10 }}>
               アンロシェカスタムTメーカー 使い方
             </div>
-            <div style={{ fontSize: 14, color: UI_SUB, marginTop: 8, lineHeight: 1.75 }}>
+            <div style={{ fontSize: 14, color: "#57534e", marginTop: 8, lineHeight: 1.75 }}>
               迷ったらここを見ればOK。まずは「使い方の流れ」だけ見れば、だいたい進められます。
             </div>
           </div>
@@ -2265,9 +2158,9 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                     border: "1px solid #f0ede9",
                     borderRadius: 14,
                     padding: "8px 14px",
-                    background: "#ffffff",
+                    background: "#fff",
                     fontSize: 14,
-                    color: UI_TEXT,
+                    color: "#44403c",
                     lineHeight: 1.6,
                     fontWeight: 700,
                   }}
@@ -2331,9 +2224,9 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                     border: "1px solid #f0ede9",
                     borderRadius: 14,
                     padding: "8px 14px",
-                    background: "#ffffff",
+                    background: "#fff",
                     fontSize: 14,
-                    color: UI_TEXT,
+                    color: "#44403c",
                     lineHeight: 1.6,
                     fontWeight: 700,
                   }}
@@ -2372,7 +2265,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                       border: "1px solid #f0ede9",
                       borderRadius: 14,
                       padding: "8px 10px",
-                      background: "#ffffff",
+                      background: "#fff",
                       display: "grid",
                       gridTemplateColumns: "28px 1fr",
                       gap: 8,
@@ -2389,7 +2282,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: UI_HEAD,
+                        color: "#1f2937",
                       }}
                     >
                       <Icon size={13} strokeWidth={2.1} />
@@ -2423,7 +2316,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
                   style={{
                     border: "1px solid #f0ede9",
                     borderRadius: 14,
-                    background: "#ffffff",
+                    background: "#fff",
                     padding: "12px 14px",
                   }}
                 >
@@ -2439,7 +2332,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
           style={{
             padding: isMobile ? 14 : 16,
             borderTop: "1px solid #e7e5e4",
-            background: "#ffffff",
+            background: "#fff",
             display: "flex",
             justifyContent: "space-between",
             gap: 10,
@@ -2447,7 +2340,7 @@ function HelpModal({ open, onClose, compact = false, isMobile = false }) {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ fontSize: 13, color: UI_SUB, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: "#78716c", lineHeight: 1.6 }}>
             まずは「かんたん手順」だけ見れば十分です。迷ったときは「困ったとき」を見ればOKです。
           </div>
           <button
@@ -2536,15 +2429,6 @@ export default function App() {
   const [interactionMode, setInteractionMode] = useState("pan");
   const [isEditMode, setIsEditMode] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isMobileRightPanelOpen, setIsMobileRightPanelOpen] = useState(false);
-  const [showMobileRightPanelGuide, setShowMobileRightPanelGuide] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY) !== "seen";
-    } catch {
-      return false;
-    }
-  });
 
   const notifyStatus = (message, options = {}) => {
     const { forceAlert = false } = options || {};
@@ -2599,48 +2483,6 @@ export default function App() {
   const layoutColumns = isTablet ? "1fr" : "minmax(0, 1fr) minmax(340px, 420px)";
   const sizeColumns = isMobile ? 4 : 5;
   const designColumns = isMobile ? 2 : isTablet ? 2 : 3;
-
-  useEffect(() => {
-    if (!isMobile || typeof document === "undefined") return undefined;
-
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevBodyOverscroll = document.body.style.overscrollBehavior;
-
-    if (isMobileRightPanelOpen) {
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.overscrollBehavior = "none";
-    }
-
-    return () => {
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.body.style.overflow = prevBodyOverflow;
-      document.body.style.overscrollBehavior = prevBodyOverscroll;
-    };
-  }, [isMobile, isMobileRightPanelOpen]);
-
-  useEffect(() => {
-    if (!isMobile || appView !== "maker") return;
-    if (!showMobileRightPanelGuide) return;
-    if (isMobileRightPanelOpen) {
-      setShowMobileRightPanelGuide(false);
-      try {
-        window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-      } catch {}
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setShowMobileRightPanelGuide(false);
-      try {
-        window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-      } catch {}
-    }, 4200);
-
-    return () => window.clearTimeout(timer);
-  }, [isMobile, appView, isMobileRightPanelOpen, showMobileRightPanelGuide]);
-
 
   const canEditCurrentSize = EDITABLE_SIZES.includes(fit);
   const canEditActive = canEditCurrentSize && isEditMode;
@@ -2828,7 +2670,6 @@ export default function App() {
     if (!wrap) return;
 
     const handleNativeTouchStart = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (e.touches.length !== 2) return;
       const [t1, t2] = e.touches;
       stopSingleTouchInteraction();
@@ -2842,7 +2683,6 @@ export default function App() {
     };
 
     const handleNativeTouchMove = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (e.touches.length !== 2) return;
       const [t1, t2] = e.touches;
       const currentDistance = getTouchDistance(t1, t2);
@@ -2867,7 +2707,6 @@ export default function App() {
     };
 
     const handleNativeTouchEnd = (e) => {
-      if (isMobile && isMobileRightPanelOpen) return;
       if (touchRef.current.mode !== "pinch") return;
       if (e.touches.length < 2) {
         touchRef.current.active = false;
@@ -2891,7 +2730,7 @@ export default function App() {
       wrap.removeEventListener("touchend", handleNativeTouchEnd, true);
       wrap.removeEventListener("touchcancel", handleNativeTouchEnd, true);
     };
-  }, [isMobile, isMobileRightPanelOpen, isTouchCapable, zoom]);
+  }, [isTouchCapable, zoom]);
 
   useEffect(() => {
     if (!isTouchCapable) return;
@@ -2940,7 +2779,7 @@ export default function App() {
       canvas.removeEventListener("gesturechange", preventGestureDefault);
       canvas.removeEventListener("gestureend", preventGestureDefault);
     };
-  }, [isTouchCapable, isMobile, isMobileRightPanelOpen]);
+  }, [isTouchCapable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4197,7 +4036,7 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: UI_PANEL_STAGE,
+        background: "#f5f5f4",
         padding: isMobile ? 10 : 16,
         boxSizing: "border-box",
         fontFamily: "sans-serif",
@@ -4253,25 +4092,8 @@ export default function App() {
                         height: "auto",
                       }}
                     />
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        marginTop: 8,
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        background: "rgba(65,180,187,0.08)",
-                        border: `1px solid ${UI_BORDER}`,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        color: UI_HEAD,
-                      }}
-                    >
-                      <span style={{ color: UI_SUB }}>{DISPLAY_VERSION}</span>
-                    </div>
                     {isDesignAdjustAuthed && (
-                      <div style={{ fontSize: 11, color: UI_SUB, marginTop: 6 }}>data: {DESIGNS_DATA_VERSION}</div>
+                      <div style={{ fontSize: 11, color: "#78716c", marginTop: 6 }}>{APP_VERSION} / data: {DESIGNS_DATA_VERSION}</div>
                     )}
                   </div>
 
@@ -4304,7 +4126,7 @@ export default function App() {
                       onClick={toggleSide}
                     >
                       <Repeat2 size={compact ? 15 : 17} strokeWidth={2.25} />
-                      <span style={{ color: UI_TEXT, WebkitTextFillColor: UI_TEXT }}>{side === "front" ? "裏" : "表"}</span>
+                      <span style={{ color: "#1f2937", WebkitTextFillColor: "#1f2937" }}>{side === "front" ? "裏" : "表"}</span>
                     </button>
 
                     <div
@@ -4318,7 +4140,7 @@ export default function App() {
                       <IconButton title="縮小" ariaLabel="縮小" compact={compact} onClick={() => zoomByButton(-1)}>
                         <Minus size={compact ? 16 : 18} strokeWidth={2.25} />
                       </IconButton>
-                      <div style={{ minWidth: 50, textAlign: "center", fontWeight: 700, color: UI_TEXT, WebkitTextFillColor: UI_TEXT }}>{Math.round(zoom * 100)}%</div>
+                      <div style={{ minWidth: 50, textAlign: "center", fontWeight: 700, color: "#1f2937", WebkitTextFillColor: "#1f2937" }}>{Math.round(zoom * 100)}%</div>
                       <IconButton title="拡大" ariaLabel="拡大" compact={compact} onClick={() => zoomByButton(1)}>
                         <Plus size={compact ? 16 : 18} strokeWidth={2.25} />
                       </IconButton>
@@ -4379,11 +4201,10 @@ export default function App() {
                   ref={wrapRef}
                   style={{
                     position: "relative",
-                    background: "#ffffff",
+                    background: "#fff",
                     borderRadius: compact ? 16 : 20,
-                    padding: 0,
-                    boxShadow: "0 10px 26px rgba(47,59,64,0.08)",
-                    border: `1px solid rgba(65,180,187,0.22)`,
+                    padding: isMobile ? 8 : 12,
+                    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.05)",
                     overflow: "hidden",
                     maxHeight: isTablet ? "none" : "82vh",
                     minWidth: 0,
@@ -4399,7 +4220,7 @@ export default function App() {
                       width: "100%",
                       maxWidth: "100%",
                       display: "block",
-                      borderRadius: compact ? 16 : 20,
+                      borderRadius: 16,
                       background: "#ffffff",
                       cursor: canvasCursor,
                       touchAction: "none",
@@ -4423,7 +4244,7 @@ export default function App() {
                 </div>
 
                 {isDesignAdjustAuthed && (
-                  <div style={{ marginTop: 10, fontSize: 13, color: UI_SUB }}>
+                  <div style={{ marginTop: 10, fontSize: 13, color: "#57534e" }}>
                     状態: {isSwitchingDesign ? "デザイン切替中..." : status}
                   </div>
                 )}
@@ -4431,15 +4252,15 @@ export default function App() {
                 <div
                   style={{
                     marginTop: 14,
-                    border: `1px solid ${UI_BORDER}`,
+                    border: "1px solid #e7e5e4",
                     borderRadius: 14,
-                    background: "#ffffff",
+                    background: "#fff",
                     padding: 12,
                   }}
                 >
                   <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>お気に入り</div>
                   {isDesignAdjustAuthed && (
-                    <div style={{ fontSize: 12, color: UI_SUB, marginBottom: 10, lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
                       いまの Tカラー / インクカラー / サイズ / デザイン を小さい画像つきで保存します
                     </div>
                   )}
@@ -4450,8 +4271,8 @@ export default function App() {
                         border: "1px dashed #d6d3d1",
                         borderRadius: 12,
                         padding: 14,
-                        color: UI_SUB,
-                        background: UI_PANEL_SOFT,
+                        color: "#78716c",
+                        background: "#fafaf9",
                         fontSize: 13,
                       }}
                     >
@@ -4470,46 +4291,14 @@ export default function App() {
                         <div
                           key={favorite.id}
                           style={{
-                            position: "relative",
-                            border: `1px solid ${UI_BORDER}`,
+                            border: "1px solid #e7e5e4",
                             borderRadius: 12,
                             overflow: "hidden",
-                            background: "#ffffff",
+                            background: "#fff",
                             boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
                             minWidth: 0,
                           }}
                         >
-                          <button
-                            type="button"
-                            aria-label="お気に入りを削除"
-                            title="お気に入りを削除"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeFavorite(favorite.id);
-                            }}
-                            style={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              width: 26,
-                              height: 26,
-                              borderRadius: 999,
-                              border: `1px solid ${UI_BORDER_STRONG}`,
-                              background: "rgba(255,255,255,0.92)",
-                              color: UI_HEAD,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              zIndex: 2,
-                              boxShadow: "0 4px 10px rgba(47,59,64,0.12)",
-                              padding: 0,
-                              lineHeight: 1,
-                            }}
-                          >
-                            <X size={14} />
-                          </button>
-
                           <button
                             type="button"
                             onClick={() => applyFavorite(favorite)}
@@ -4517,7 +4306,7 @@ export default function App() {
                               display: "block",
                               width: "100%",
                               border: "none",
-                              background: "#ffffff",
+                              background: "#fff",
                               padding: 0,
                               cursor: "pointer",
                               textAlign: "left",
@@ -4527,7 +4316,7 @@ export default function App() {
                               style={{
                                 width: "100%",
                                 aspectRatio: "1 / 1",
-                                background: UI_PANEL_STAGE,
+                                background: "#f5f5f4",
                                 overflow: "hidden",
                                 borderBottom: "1px solid #f0ede9",
                               }}
@@ -4555,7 +4344,7 @@ export default function App() {
                               <div style={{ fontWeight: 800, fontSize: 12, color: "#1c1917", lineHeight: 1.35, wordBreak: "break-word" }}>
                                 {favorite.designName || favorite.designId}
                               </div>
-                              <div style={{ fontSize: 11, color: UI_SUB, lineHeight: 1.35 }}>
+                              <div style={{ fontSize: 11, color: "#57534e", lineHeight: 1.35 }}>
                                 {favorite.shirtCode}
                                 {(favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name)
                                   ? ` / ${favorite.shirtName || shirts.find((item) => item.code === favorite.shirtCode)?.name}`
@@ -4568,15 +4357,30 @@ export default function App() {
                                     height: 12,
                                     borderRadius: 999,
                                     background: favorite.inkColor,
-                                    border: `1px solid ${UI_BORDER}`,
+                                    border: "1px solid #d6d3d1",
                                     display: "inline-block",
                                     flexShrink: 0,
                                   }}
                                 />
-                                <span style={{ fontSize: 11, color: UI_SUB }}>{favorite.fit}</span>
+                                <span style={{ fontSize: 11, color: "#78716c" }}>{favorite.fit}</span>
                               </div>
                             </div>
                           </button>
+
+                          <div style={{ padding: "0 8px 8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => removeFavorite(favorite.id)}
+                              style={{
+                                ...buttonStyle(false, true),
+                                width: "100%",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                              }}
+                            >
+                              削除
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -4587,15 +4391,15 @@ export default function App() {
                   <div
                     style={{
                       marginTop: 14,
-                      border: `1px solid ${UI_BORDER}`,
+                      border: "1px solid #d6d3d1",
                       borderRadius: 14,
-                      background: "#ffffff",
+                      background: "#fff",
                       padding: 12,
                       minWidth: 0,
                     }}
                   >
                     <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>patch 完全版</div>
-                    <div style={{ fontSize: 12, color: UI_SUB, marginBottom: 10, lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10, lineHeight: 1.6 }}>
                       design-placement-patches.cjs を丸ごと置き換える用
                     </div>
 
@@ -4606,14 +4410,14 @@ export default function App() {
                         width: "100%",
                         minHeight: isMobile ? 200 : 260,
                         resize: "vertical",
-                        border: `1px solid ${UI_BORDER}`,
+                        border: "1px solid #d6d3d1",
                         borderRadius: 10,
                         padding: 10,
                         boxSizing: "border-box",
                         fontFamily: "monospace",
                         fontSize: 12,
                         lineHeight: 1.5,
-                        background: UI_PANEL_SOFT,
+                        background: "#fafaf9",
                         minWidth: 0,
                       }}
                     />
@@ -4622,159 +4426,10 @@ export default function App() {
               </div>
             </div>
 
-            {!isMobile && (
-              <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
-            )}
+            <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
           </div>
 
         )}
-      {isMobile && appView === "maker" && (
-        <>
-          <div
-            onClick={() => setIsMobileRightPanelOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.28)",
-              zIndex: 30,
-              opacity: isMobileRightPanelOpen ? 1 : 0,
-              pointerEvents: isMobileRightPanelOpen ? "auto" : "none",
-              transition: "opacity 220ms ease",
-            }}
-          />
-
-          <div
-            style={{
-              position: "fixed",
-              top: "calc(env(safe-area-inset-top) + 10px)",
-              bottom: "calc(env(safe-area-inset-bottom) + 10px)",
-              right: 10,
-              width: "min(360px, calc(100vw - 28px))",
-              zIndex: 40,
-              transition: "transform 320ms cubic-bezier(.22,.8,.24,1), opacity 220ms ease",
-              overscrollBehavior: "contain",
-              transform: isMobileRightPanelOpen ? "translateX(0)" : "translateX(calc(100% + 18px))",
-              opacity: isMobileRightPanelOpen ? 1 : 0,
-              pointerEvents: isMobileRightPanelOpen ? "auto" : "none",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                overflowY: "auto",
-                overflowX: "hidden",
-                paddingRight: 4,
-                boxSizing: "border-box",
-                overscrollBehavior: "contain",
-                WebkitOverflowScrolling: "touch",
-                touchAction: "pan-y",
-              }}
-              onTouchStartCapture={(e) => e.stopPropagation()}
-              onTouchMoveCapture={(e) => e.stopPropagation()}
-              onPointerDownCapture={(e) => e.stopPropagation()}
-            >
-              <RightDummyTestPanel compact={compact} isMobile={isMobile} designId={designId} onSelectDesign={(nextDesignId) => { if (nextDesignId === designId) return; setDesignId(nextDesignId); setIsMobileRightPanelOpen(false); }} designColumns={designColumns} shirts={shirts} shirtCode={shirtCode} setShirtCode={setShirtCode} side={side} fit={fit} setFit={setFit} inkColor={inkColor} setInkColor={setInkColor} selectedInkName={selectedInkName} openSections={openSections} toggleSection={toggleSection} isDesignAdjustAuthed={isDesignAdjustAuthed} toggleDesignAdjustLock={toggleDesignAdjustLock} currentPlacement={currentPlacement} designWidthCm={designWidthCm} currentBodyLengthCm={currentBodyLengthCm} widthPercentOfBody={widthPercentOfBody} directSaved={directSaved} canEditCurrentSize={canEditCurrentSize} isEditMode={isEditMode} ensureDesignAdjustAuth={ensureDesignAdjustAuth} setIsEditMode={setIsEditMode} setIsDesignSelected={setIsDesignSelected} resetPlacement={resetPlacement} exportAllDesignsPatch={exportAllDesignsPatch} />
-            </div>
-          </div>
-
-          {showMobileRightPanelGuide && !isMobileRightPanelOpen && (
-            <div
-              style={{
-                position: "fixed",
-                right: 62,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 44,
-                maxWidth: 148,
-                padding: "10px 12px",
-                borderRadius: 14,
-                background: "rgba(255,255,255,0.96)",
-                color: UI_HEAD,
-                border: `1px solid ${UI_BORDER_STRONG}`,
-                boxShadow: "0 10px 28px rgba(47,59,64,0.12)",
-                fontSize: 12,
-                fontWeight: 800,
-                lineHeight: 1.45,
-                pointerEvents: "none",
-              }}
-            >
-              ここから設定できます
-              <div
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  right: -6,
-                  width: 12,
-                  height: 12,
-                  background: "rgba(255,255,255,0.96)",
-                  borderRight: `1px solid ${UI_BORDER_STRONG}`,
-                  borderBottom: `1px solid ${UI_BORDER_STRONG}`,
-                  transform: "translateY(-50%) rotate(-45deg)",
-                }}
-              />
-            </div>
-          )}
-
-          <button
-            type="button"
-            aria-label={isMobileRightPanelOpen ? "設定パネルを閉じる" : "設定パネルを開く"}
-            title={isMobileRightPanelOpen ? "設定を閉じる" : "設定を開く"}
-            style={{
-              position: "fixed",
-              right: -20,
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 45,
-              width: 68,
-              height: 192,
-              padding: 0,
-              border: "none",
-              background: "transparent",
-              boxShadow: "none",
-              overflow: "visible",
-              cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
-            }}
-            onClick={() => {
-              setShowMobileRightPanelGuide(false);
-              try {
-                window.localStorage.setItem(MOBILE_RIGHT_PANEL_GUIDE_STORAGE_KEY, "seen");
-              } catch {}
-              setIsMobileRightPanelOpen((prev) => !prev);
-            }}
-          >
-            <svg
-              viewBox="0 0 86.99 167.99"
-              aria-hidden="true"
-              style={{
-                width: "100%",
-                height: "100%",
-                display: "block",
-                overflow: "visible",
-                opacity: isMobileRightPanelOpen ? 0.96 : 1,
-              }}
-            >
-              <path
-                d="M62.68,11.31v21.05c0,4.79-2.48,9.24-6.56,11.76l-16.39,10.1c-4.08,2.52-6.56,6.97-6.56,11.76v37.51c0,4.79,2.48,9.24,6.56,11.76l16.39,10.1c4.08,2.52,6.56,6.97,6.56,11.76v24.89H86.99V11.31Z"
-                fill="rgba(255,255,255,0.96)"
-                stroke="rgba(65,180,187,0.18)"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.2"
-              />
-              <path
-                d="M70.6 44.5c0-2.2 1.8-4 4-4h3.2c2.2 0 4 1.8 4 4v79c0 2.2-1.8 4-4 4h-3.2c-2.2 0-4-1.8-4-4z"
-                fill="rgba(65,180,187,0.12)"
-              />
-              <path
-                d="M44.8 60.8c0-1 .8-1.8 1.8-1.8h1.6c1 0 1.8.8 1.8 1.8v46.4c0 1-.8 1.8-1.8 1.8h-1.6c-1 0-1.8-.8-1.8-1.8z"
-                fill={isMobileRightPanelOpen ? "rgba(65,180,187,0.84)" : "rgba(65,180,187,0.72)"}
-              />
-            </svg>
-          </button>
-        </>
-      )}
       {isHelpOpen && <HelpModal open={isHelpOpen} onClose={() => setIsHelpOpen(false)} compact={compact} isMobile={isMobile} />}
       </div>
     </div>
