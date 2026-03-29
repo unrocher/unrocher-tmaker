@@ -1429,13 +1429,17 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
       <div style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
         <div
           style={{
-            display: "flex",
+            display: "grid",
+            gridAutoFlow: "column",
+            gridTemplateRows: "repeat(2, auto)",
+            gridAutoColumns: compact ? "112px" : "126px",
             gap: compact ? 8 : 10,
             overflowX: "auto",
             overflowY: "hidden",
             width: "100%",
             maxWidth: "100%",
             paddingBottom: 4,
+            alignContent: "start",
             WebkitOverflowScrolling: "touch",
             scrollbarWidth: "thin",
           }}
@@ -1459,10 +1463,9 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
                 }}
                 style={{
                   position: "relative",
-                  flex: "0 0 auto",
-                  width: compact ? 112 : 126,
-                  minWidth: compact ? 112 : 126,
-                  maxWidth: compact ? 112 : 126,
+                  width: "100%",
+                  minWidth: 0,
+                  maxWidth: "100%",
                   border: active ? `2px solid ${UI_BLUE}` : `1px solid ${UI_BORDER}`,
                   background: "#ffffff",
                   borderRadius: compact ? 10 : 12,
