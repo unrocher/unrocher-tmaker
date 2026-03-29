@@ -1432,7 +1432,7 @@ function DesignPicker({ designs, designId, onSelectDesign, columns = 3, compact 
             display: "grid",
             gridAutoFlow: "column",
             gridTemplateRows: "repeat(2, auto)",
-            gridAutoColumns: compact ? "112px" : "126px",
+            gridAutoColumns: compact ? "132px" : "148px",
             gap: compact ? 8 : 10,
             overflowX: "auto",
             overflowY: "hidden",
